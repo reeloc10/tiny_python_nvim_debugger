@@ -4,7 +4,6 @@
 -- Set your global leader key first
 vim.g.mapleader = " "
 vim.o.timeoutlen = 2000
-vim.opt.number = true
 
 -- Load modular configurations
 require("pylsp_config").setup()
