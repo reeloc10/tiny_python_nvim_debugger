@@ -10,7 +10,15 @@ import socket
 import sys
 import threading
 
-SOCKET_PATH = "/dev/shm/tiny_debugger.sock"
+if len(sys.argv) < 3:
+    print("Usage: python3 tiny_debugger.py <nvim_pid> <target_script.py>")
+    sys.exit(1)
+
+nvim_pid = sys.argv[1]
+target_file = sys.argv[2]
+
+SOCKET_PATH = f"/dev/shm/tiny_debugger_{nvim_pid}.sock"
+PY_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 @atexit.register
 def cleanup_socket():
@@ -38,16 +46,23 @@ class TinyDebugger:
         
         self.command_queue = queue.Queue()
         self.lock = threading.Lock()
+        self.verbose = False
         
         raw_msg = ""
         while not raw_msg:
             raw_msg = self.rfile.readline().strip()
             
         config = json.loads(raw_msg)
-        self.breakpoints = {}  # Maps (file, line) -> hit_count
+
+        # Enforce script dir check immediately on initial handshake
+        self.check_script_dir(config.get("nvim_script_dir"))
+
+        self.breakpoints = {}
         for bp in config.get("breakpoints", []):
             self.breakpoints[(os.path.abspath(bp["file"]), bp["line"])] = bp.get("hits", 0)
             
+        self.verbose = config.get("verbose", False)
+
         self.step_mode = "continue"
         self.stop_frame = None
 
@@ -55,6 +70,18 @@ class TinyDebugger:
         self.listener_thread.start()
         
         print(f"[Debugger] Loaded {len(self.breakpoints)} breakpoint(s). Execution starting...")
+
+    def check_script_dir(self, nvim_script_dir):
+        norm_py = os.path.realpath(PY_SCRIPT_DIR)
+        norm_nvim = os.path.realpath(nvim_script_dir) if nvim_script_dir else ""
+        if not norm_nvim or norm_py != norm_nvim:
+            msg = (
+                f"Fatal Script Location Mismatch! Python tiny_debugger.py is in '{norm_py}' "
+                f"but Neovim tiny_debugger.lua is in '{norm_nvim or 'UNKNOWN'}'. Aborting for stability."
+            )
+            print(f"[Debugger Error] {msg}")
+            self.send_event({"event": "fatal_error", "message": msg})
+            os._exit(1)
 
     def _socket_listener(self):
         try:
@@ -67,6 +94,9 @@ class TinyDebugger:
                     try:
                         data = json.loads(cmd_str)
                         if isinstance(data, dict):
+                            self.verbose = data.get("verbose", self.verbose)
+                            self.check_script_dir(data.get("nvim_script_dir"))
+
                             cmd = data.get("command")
                             if cmd == "quit":
                                 print("[Debugger] Termination requested by Neovim. Exiting...")
@@ -83,6 +113,8 @@ class TinyDebugger:
                                 with self.lock:
                                     self.breakpoints = new_bps
                                 self.command_queue.put("continue")
+                            elif cmd and cmd.startswith("eval:"):
+                                self.command_queue.put(cmd)
                             elif cmd:
                                 self.command_queue.put(cmd)
                     except json.JSONDecodeError:
@@ -98,14 +130,10 @@ class TinyDebugger:
     def trace_calls(self, frame, event, arg):
         if event == 'call':
             filename = frame.f_code.co_filename
-            # Ignore frozen modules and Python's standard library
-            if filename.startswith("<frozen") or os.path.abspath(filename).startswith(sys.base_prefix):
+            if filename.startswith("<frozen"):
                 return None
-            
-            # Step Over: do not trace into function calls made from stop_frame
             if self.step_mode == "next" and frame.f_back is self.stop_frame:
                 return None
-
             return self.trace_lines
         return None
 
@@ -113,6 +141,10 @@ class TinyDebugger:
         if event == 'line':
             filename = os.path.abspath(frame.f_code.co_filename)
             lineno = frame.f_lineno
+
+            if self.verbose and filename == self.target_file:
+                print(f"[Trace] Visiting {filename}:{lineno}")
+                self.send_event({"event": "trace", "file": filename, "line": lineno})
 
             should_stop = False
             bp_key = (filename, lineno)
@@ -126,7 +158,6 @@ class TinyDebugger:
                 if frame is self.stop_frame:
                     should_stop = True
                 elif self.stop_frame:
-                    # Check if we have exited stop_frame (returned to caller)
                     in_stack = False
                     curr = frame
                     while curr:
@@ -203,16 +234,12 @@ def attach(target_file):
     sys.settrace(debugger.trace_calls)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python3 tiny_debugger.py <target_script.py>")
-        sys.exit(1)
-    
-    target_file = sys.argv[1]
     if not os.path.exists(target_file):
         print(f"Error: Target file '{target_file}' not found.")
         sys.exit(1)
 
-    sys.argv = sys.argv[1:]
+    # Shift out tiny_debugger.py and nvim_pid, making target_file sys.argv[0] for the target script
+    sys.argv = sys.argv[2:]
     sys.path.insert(0, os.path.dirname(os.path.abspath(target_file)))
 
     attach(target_file)
