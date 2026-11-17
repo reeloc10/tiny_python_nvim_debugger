@@ -14,11 +14,11 @@ Tested on Fedora 45 using system RPM packages from the official repositories:
 Run in two separate terminals (in any order):
 
 ```bash
-nvim -u init.lua target.py
+nvim -u <cloned folder>/init.lua target.py
 ```
 
 ```bash
-python3 tiny_debugger.py target.py
+python3 <cloned folder>/tiny_debugger.py <nvim pid> target.py
 ```
 
 ## Keybindings
