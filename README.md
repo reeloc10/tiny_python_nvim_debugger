@@ -1,6 +1,6 @@
 # tiny_debugger & pylsp/ruff Integration
 
-A zero-dependency, ~475-line Python and Neovim debugger using RAM-backed Unix domain sockets (`/dev/shm`) and `sys.settrace`—bypassing the DAP ecosystem—paired with a minimal `pylsp` and `ruff` LSP/linting setup (`pylsp_config.lua`).
+A minimal dependency, ~475-line Python and Neovim debugger using RAM-backed Unix domain sockets (`/dev/shm`) and `sys.settrace`—bypassing the DAP ecosystem—paired with a minimal `pylsp` and `ruff` LSP/linting setup (`pylsp_config.lua`).
 
 ## Preferred Documentation & Feedback Channel
 Live demos, Q&A, and feedback: [twitch.tv/reeloc10](https://www.twitch.tv/reeloc10)
