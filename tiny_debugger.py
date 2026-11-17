@@ -29,7 +29,11 @@ def cleanup_socket():
             pass
 
 class TinyDebugger:
+    instance = None
+    debugger_file = os.path.abspath(__file__)  # Store at class level safely
+
     def __init__(self, target_file):
+        TinyDebugger.instance = self
         cleanup_socket()
 
         self.target_file = os.path.abspath(target_file)
@@ -129,33 +133,48 @@ class TinyDebugger:
             self.wfile.write(json.dumps(data) + "\n")
             self.wfile.flush()
 
-    def trace_calls(self, frame, event, arg):
+    @staticmethod
+    def trace_calls(frame, event, arg):
         if event == 'call':
             filename = frame.f_code.co_filename
 
-            if filename.startswith("<frozen") or filename.startswith("<string>") or filename.startswith("<builtin>"):
-                return self.trace_calls
+            if filename.startswith(("<frozen", "<string>", "<builtin>")):
+                return None
 
             abs_filename = os.path.abspath(filename)
 
-            if "site-packages" in abs_filename or "lib/python" in abs_filename:
-                return self.trace_calls
-
-            cwd = os.getcwd()
-            if not abs_filename.startswith(self.target_dir) and not abs_filename.startswith(cwd):
+            # Block standard library, site-packages, and the debugger script itself
+            if (
+                "site-packages" in abs_filename or
+                "lib/python" in abs_filename or
+                "/usr/lib" in abs_filename or
+                "/usr/lib64" in abs_filename or
+                abs_filename == TinyDebugger.debugger_file
+            ):
                 return None
 
-            if self.step_mode == "next" and frame.f_back is self.stop_frame:
-                return None
-            return self.trace_lines
+            self = TinyDebugger.instance
+            if self:
+                cwd = os.getcwd()
+                if not abs_filename.startswith(self.target_dir) and not abs_filename.startswith(cwd):
+                    return None
+
+                if self.step_mode == "next" and frame.f_back is self.stop_frame:
+                    return None
+
+            return TinyDebugger.trace_lines
         return None
 
-    def trace_lines(self, frame, event, arg):
+    @staticmethod
+    def trace_lines(frame, event, arg):
         if event == 'line':
             filename = os.path.abspath(frame.f_code.co_filename)
             lineno = frame.f_lineno
 
-            # Gatekept entirely by trace_calls—no redundant path checks required here.
+            self = TinyDebugger.instance
+            if not self:
+                return TinyDebugger.trace_lines
+
             if self.verbose:
                 print(f"[Trace] Visiting {filename}:{lineno}")
                 self.send_event({"event": "trace", "file": filename, "line": lineno})
@@ -241,18 +260,17 @@ class TinyDebugger:
                         self.step_mode = 'step'
                         break
 
-        return self.trace_lines
+        return TinyDebugger.trace_lines
 
 def attach(target_file):
     debugger = TinyDebugger(target_file)
-    sys.settrace(debugger.trace_calls)
+    sys.settrace(TinyDebugger.trace_calls)
 
 if __name__ == "__main__":
     if not os.path.exists(target_file):
         print(f"Error: Target file '{target_file}' not found.")
         sys.exit(1)
 
-    # Shift out tiny_debugger.py and nvim_pid, making target_file sys.argv[0] for the target script
     sys.argv = sys.argv[2:]
     sys.path.insert(0, os.path.dirname(os.path.abspath(target_file)))
 
