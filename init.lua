@@ -1,6 +1,10 @@
 -- SPDX-License-Identifier: Apache-2.0
 -- Copyright 2026 reeloc10
 
+-- Ensure local repo modules load cleanly when launched via `nvim -u init.lua`
+local config_dir = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h")
+package.path = config_dir .. "/?.lua;" .. package.path
+
 -- Set global leader key first
 vim.g.mapleader = " "
 vim.o.timeoutlen = 2000
