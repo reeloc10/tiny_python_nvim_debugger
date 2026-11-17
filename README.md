@@ -32,6 +32,7 @@ Default `<leader>` key is `Space`:
 * `<leader>mv` / `<leader>mi` — Inspect variable / Evaluate expression
 * `<leader>ml` / `<leader>mr` — List / Reset breakpoints
 * `<leader>mq` — Terminate session
+* `<leader>mV` — Debugger Toggle Verbose Mode
 
 ## License
 Licensed under the [Apache License, Version 2.0](LICENSE).
