@@ -33,25 +33,27 @@ class TinyDebugger:
         cleanup_socket()
 
         self.target_file = os.path.abspath(target_file)
+        self.target_dir = os.path.dirname(self.target_file)
+
         self.server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.server.bind(SOCKET_PATH)
         self.server.listen(1)
-        
+
         print(f"[Debugger] RAM socket active at {SOCKET_PATH}. Waiting for Neovim...")
         self.conn, _ = self.server.accept()
         print("[Debugger] Neovim connected! Waiting for start command and breakpoints...")
-        
+
         self.rfile = self.conn.makefile('r')
         self.wfile = self.conn.makefile('w')
-        
+
         self.command_queue = queue.Queue()
         self.lock = threading.Lock()
         self.verbose = False
-        
+
         raw_msg = ""
         while not raw_msg:
             raw_msg = self.rfile.readline().strip()
-            
+
         config = json.loads(raw_msg)
 
         # Enforce script dir check immediately on initial handshake
@@ -60,7 +62,7 @@ class TinyDebugger:
         self.breakpoints = {}
         for bp in config.get("breakpoints", []):
             self.breakpoints[(os.path.abspath(bp["file"]), bp["line"])] = bp.get("hits", 0)
-            
+
         self.verbose = config.get("verbose", False)
 
         self.step_mode = "continue"
@@ -68,7 +70,7 @@ class TinyDebugger:
 
         self.listener_thread = threading.Thread(target=self._socket_listener, daemon=True)
         self.listener_thread.start()
-        
+
         print(f"[Debugger] Loaded {len(self.breakpoints)} breakpoint(s). Execution starting...")
 
     def check_script_dir(self, nvim_script_dir):
@@ -130,8 +132,19 @@ class TinyDebugger:
     def trace_calls(self, frame, event, arg):
         if event == 'call':
             filename = frame.f_code.co_filename
-            if filename.startswith("<frozen"):
+
+            if filename.startswith("<frozen") or filename.startswith("<string>") or filename.startswith("<builtin>"):
+                return self.trace_calls
+
+            abs_filename = os.path.abspath(filename)
+
+            if "site-packages" in abs_filename or "lib/python" in abs_filename:
+                return self.trace_calls
+
+            cwd = os.getcwd()
+            if not abs_filename.startswith(self.target_dir) and not abs_filename.startswith(cwd):
                 return None
+
             if self.step_mode == "next" and frame.f_back is self.stop_frame:
                 return None
             return self.trace_lines
@@ -142,7 +155,8 @@ class TinyDebugger:
             filename = os.path.abspath(frame.f_code.co_filename)
             lineno = frame.f_lineno
 
-            if self.verbose and filename == self.target_file:
+            # Gatekept entirely by trace_calls—no redundant path checks required here.
+            if self.verbose:
                 print(f"[Trace] Visiting {filename}:{lineno}")
                 self.send_event({"event": "trace", "file": filename, "line": lineno})
 
@@ -189,7 +203,7 @@ class TinyDebugger:
 
                 while True:
                     cmd = self.command_queue.get()
-                    
+
                     if cmd.startswith("eval:"):
                         expr = cmd[5:]
                         try:
@@ -203,7 +217,7 @@ class TinyDebugger:
                         except Exception as e:
                             res = f"Error: {e!s}"
                         self.send_event({"event": "eval_result", "expr": expr, "result": res})
-                    
+
                     elif cmd == "stack":
                         stack_frames = []
                         curr = frame
