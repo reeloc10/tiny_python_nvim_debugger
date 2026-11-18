@@ -10,6 +10,15 @@ import socket
 import sys
 import threading
 
+# ANSI Color Constants
+RESET = "\033[0m"
+BOLD = "\033[1m"
+RED = "\033[31m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+CYAN = "\033[36m"
+GRAY = "\033[90m"
+
 if len(sys.argv) < 3:
     print("Usage: python3 tiny_debugger.py <nvim_pid> <target_script.py>")
     sys.exit(1)
@@ -27,6 +36,9 @@ def cleanup_socket():
             os.unlink(SOCKET_PATH)
         except Exception:
             pass
+
+def print_error(msg):
+    print(f"{RED}{msg}{RESET}", file=sys.stderr)
 
 class TinyDebugger:
     instance = None
@@ -85,7 +97,7 @@ class TinyDebugger:
                 f"Fatal Script Location Mismatch! Python tiny_debugger.py is in '{norm_py}' "
                 f"but Neovim tiny_debugger.lua is in '{norm_nvim or 'UNKNOWN'}'. Aborting for stability."
             )
-            print(f"[Debugger Error] {msg}")
+            print_error(f"[Debugger Error] {msg}")
             self.send_event({"event": "fatal_error", "message": msg})
             os._exit(1)
 
@@ -268,7 +280,7 @@ def attach(target_file):
 
 if __name__ == "__main__":
     if not os.path.exists(target_file):
-        print(f"Error: Target file '{target_file}' not found.")
+        print_error(f"Error: Target file '{target_file}' not found.")
         sys.exit(1)
 
     sys.argv = sys.argv[2:]
@@ -278,4 +290,4 @@ if __name__ == "__main__":
     try:
         runpy.run_path(target_file, run_name="__main__")
     except Exception as e:
-        print(f"[Debugger] Target error: {e}")
+        print_error(f"[Debugger] Target error: {e}")
