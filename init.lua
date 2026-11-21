@@ -47,6 +47,12 @@ vim.api.nvim_set_hl(0, 'Whitespace', { fg = '#ff5555', ctermfg = 'Red' })
 -- Remember and restore last cursor position on file open
 vim.api.nvim_create_autocmd("BufReadPost", {
   callback = function()
+    -- Skip special buffer types (e.g., terminal, quickfix, nofile)
+    if vim.bo.buftype ~= "" then return end
+
+    -- Skip specific filetypes if needed (e.g., git commits want a fresh start)
+    if vim.bo.filetype == "gitcommit" then return end
+
     local mark = vim.api.nvim_buf_get_mark(0, '"')
     local lcount = vim.api.nvim_buf_line_count(0)
     if mark[1] > 0 and mark[1] <= lcount then
