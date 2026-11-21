@@ -44,6 +44,7 @@ local function refresh_bp_signs(bufnr)
       vim.api.nvim_buf_set_extmark(bufnr, bp_ns_id, bp.line - 1, 0, {
         sign_text = "●",
         sign_hl_group = "DiagnosticError",
+        priority = 150, -- Higher than git signs (50) so breakpoints render on top
       })
     end
   end

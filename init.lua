@@ -46,4 +46,5 @@ vim.api.nvim_set_hl(0, 'Whitespace', { fg = '#ff5555', ctermfg = 'Red' })
 
 -- Load modular configurations
 require("pylsp_config").setup()
+require("git_plugin").setup({ enabled = false }) -- starts disabled
 require("tiny_debugger").setup()
