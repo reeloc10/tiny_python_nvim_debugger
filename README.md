@@ -21,34 +21,30 @@ nvim -u <cloned folder>/init.lua target.py
 python3 <cloned folder>/tiny_debugger.py <nvim pid> target.py
 ```
 
-## Keybindings
-Default `<leader>` key is `Space`:
+## Keybindings & Commands
 
-* `<leader>mb` — Toggle breakpoint (max 5)
-* `<leader>mc` — Continue / Start execution
-* `<leader>mn` — Step over
-* `<leader>mS` — Step into
-* `<leader>ms` — Inspect call stack
-* `<leader>mv` / `<leader>mi` — Inspect variable / Evaluate expression
-* `<leader>ml` / `<leader>mr` — List / Reset breakpoints
-* `<leader>mq` — Terminate session
-* `<leader>mV` — Debugger Toggle Verbose Mode
+Default `<leader>` key is `Space`. Every shortcut maps directly to its corresponding Neovim Ex command.
 
-* `:TinyBreakpoint`
-* `:TinyListBreakpoints`
-* `:TinyResetBreakpoints`
-* `:TinyQuit`
-* `:TinyContinue`
-* `:TinyNext`
-* `:TinyStep`
-* `:TinyStack`
-* `:TinyEvalCword`
-* `:TinyEvalInput`
-* `:TinyVerbose`
+| Action | Leader Shortcut | Ex Command |
+| :--- | :--- | :--- |
+| **Toggle breakpoint** *(max 5)* | `<leader>mb` | `:TinyBreakpoint` |
+| **Continue / Start execution** | `<leader>mc` | `:TinyContinue` |
+| **Step over** | `<leader>mn` | `:TinyNext` |
+| **Step into** | `<leader>mS` | `:TinyStep` |
+| **Inspect call stack** | `<leader>ms` | `:TinyStack` |
+| **Inspect variable** | `<leader>mv` | `:TinyEvalCword` |
+| **Evaluate expression** | `<leader>mi` | `:TinyEvalInput` |
+| **List breakpoints** | `<leader>ml` | `:TinyListBreakpoints` |
+| **Reset breakpoints** | `<leader>mr` | `:TinyResetBreakpoints` |
+| **Terminate session** | `<leader>mq` | `:TinyQuit` |
+| **Toggle Verbose Mode** | `<leader>mV` | `:TinyVerbose` |
 
-* `:GitSignsToggle`
-* `:GitSignsDiff`
-* `:GitSignsInspect`
+### Git Integration
+| Action | Ex Command |
+| :--- | :--- |
+| **Toggle GitSigns** | `:GitSignsToggle` |
+| **View Git Diff** | `:GitSignsDiff` |
+| **Inspect Git Hunk** | `:GitSignsInspect` |
 
 ## License
 Licensed under the [Apache License, Version 2.0](LICENSE).
