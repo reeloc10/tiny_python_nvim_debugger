@@ -9,6 +9,7 @@ local M = {}
 -- Default configuration options (starts enabled by default)
 M.config = {
   enabled = true,
+  diff_command = "GitSignsDiff",
 }
 
 function M.setup(opts)
@@ -17,6 +18,10 @@ function M.setup(opts)
   local ns_col1 = vim.api.nvim_create_namespace("native_git_signs_col1")
   local ns_col2 = vim.api.nvim_create_namespace("native_git_signs_col2")
   local debug_log_path = string.format("/dev/shm/git_plugin_debug_%d.log", vim.fn.getpid())
+
+  -- Track active vimdiff split state
+  local diff_win = nil
+  local diff_buf = nil
 
   local function log_debug(fmt, ...)
     local f = io.open(debug_log_path, "w")
@@ -75,6 +80,10 @@ function M.setup(opts)
     if not vim.api.nvim_buf_is_valid(bufnr) then return end
 
     local file = vim.api.nvim_buf_get_name(bufnr)
+
+    -- Skip sign updates on our in-memory GitDiffHEAD scratch buffer
+    if type(file) == "string" and file:match("GitDiffHEAD://") then return end
+
     if type(file) ~= "string" or file == "" then
       fatal_error_exit("Bad filename — Disabling plugin.", bufnr)
       return
@@ -239,6 +248,7 @@ function M.setup(opts)
         local unconsumed_groups = {}
         for d_idx, del_item in ipairs(all_deletes) do
           if not consumed_deletes[d_idx] then
+            -- Anchor unconsumed deletes just before the hunk (0-indexed) to prevent column collision
             local target_line = del_item.hunk_new_start - 2
             target_line = math.min(line_count - 1, math.max(0, target_line))
 
@@ -303,10 +313,6 @@ function M.setup(opts)
     end)
   end
 
-  vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained" }, {
-    callback = update_git_signs,
-  })
-
   -- User command to toggle plugin on/off
   vim.api.nvim_create_user_command("GitSignsToggle", function()
     M.config.enabled = not M.config.enabled
@@ -322,11 +328,94 @@ function M.setup(opts)
     end
   end, {})
 
+  -- User command to toggle read-only in-memory vimdiff split view against HEAD
+  vim.api.nvim_create_user_command(M.config.diff_command, function()
+    -- If diff window is already open and valid, tear it down
+    if diff_win and vim.api.nvim_win_is_valid(diff_win) then
+      vim.cmd("diffoff!")
+      vim.api.nvim_win_close(diff_win, true)
+      if diff_buf and vim.api.nvim_buf_is_valid(diff_buf) then
+        vim.api.nvim_buf_delete(diff_buf, { force = true })
+      end
+      diff_win = nil
+      diff_buf = nil
+      print("[tiny_debugger] Closed vimdiff split view")
+      log_append("Closed vimdiff split view")
+      return
+    end
+
+    local bufnr = vim.api.nvim_get_current_buf()
+    local file = vim.api.nvim_buf_get_name(bufnr)
+    if type(file) ~= "string" or file == "" then
+      print("[tiny_debugger] Error: Active buffer has no valid filename.")
+      return
+    end
+
+    local filename = vim.fn.fnamemodify(file, ":t")
+    local cmd_output = vim.system({ "git", "show", "HEAD:./" .. filename }, { text = true }):wait()
+    if cmd_output.code ~= 0 then
+      local err_str = "[tiny_debugger] Failed to fetch HEAD revision for vimdiff: " .. (cmd_output.stderr or "")
+      print(err_str)
+      log_append("%s", err_str)
+      return
+    end
+
+    -- Clean up any leftover scratch buffer with the same name before creating a fresh one
+    local target_buf_name = "GitDiffHEAD://" .. filename
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_valid(b) and vim.api.nvim_buf_get_name(b):match("GitDiffHEAD://") then
+        vim.api.nvim_buf_delete(b, { force = true })
+      end
+    end
+
+    -- Create an anonymous memory buffer (no disk I/O, purely in-memory scratch buffer)
+    diff_buf = vim.api.nvim_create_buf(false, true)
+    if not diff_buf or not vim.api.nvim_buf_is_valid(diff_buf) then
+      print("[tiny_debugger] Failed to create in-memory buffer.")
+      return
+    end
+
+    -- Set buffer name for clarity in statusline
+    vim.api.nvim_buf_set_name(diff_buf, target_buf_name)
+
+    -- Populate memory buffer lines from git show output
+    local lines = vim.split(cmd_output.stdout or "", "\n", { plain = true })
+    if #lines > 0 and lines[#lines] == "" then
+      table.remove(lines)
+    end
+    vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, lines)
+
+    -- Enforce strict read-only restrictions on the base buffer
+    vim.bo[diff_buf].readonly = true
+    vim.bo[diff_buf].modifiable = false
+    vim.bo[diff_buf].buftype = "nofile"
+    vim.bo[diff_buf].swapfile = false
+
+    -- Open the in-memory buffer in a vertical split on the left
+    vim.cmd("vsplit")
+    diff_win = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(diff_win, diff_buf)
+
+    -- Enable diff mode on the base memory buffer
+    vim.cmd("diffthis")
+
+    -- Move back to original buffer, enable diff mode, and sync folding/scroll
+    vim.cmd("wincmd p")
+    vim.cmd("diffthis")
+
+    print("[tiny_debugger] Switched to vimdiff view (In-Memory HEAD base)")
+    log_append("Switched to vimdiff view (In-Memory HEAD base)")
+  end, {})
+
   -- User command to manually force a debug inspection trace dump (:GitSignsInspect)
   vim.api.nvim_create_user_command("GitSignsInspect", function()
     update_git_signs()
     print("GitSigns inspect log written to " .. debug_log_path)
   end, {})
+
+  vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained" }, {
+    callback = update_git_signs,
+  })
 end
 
 return M
