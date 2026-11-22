@@ -1,7 +1,8 @@
 -- SPDX-License-Identifier: Apache-2.0
 -- Copyright 2026 reeloc10
 
--- Native 2-column git sign indicator and inline word-level diff tracking using Neovim API.
+-- Native 2-column git sign indicator, inline word-level diff tracking,
+-- and in-memory read-only vimdiff split toggle using Neovim API and indices.
 -- Implemented with clean, compact glyph extmarks for maximum compatibility and zero gutter jitter.
 
 local M = {}
@@ -13,16 +14,18 @@ M.config = {
 }
 
 function M.setup(opts)
+  -- Merge user configuration overrides with defaults
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 
   local ns_col1 = vim.api.nvim_create_namespace("native_git_signs_col1")
   local ns_col2 = vim.api.nvim_create_namespace("native_git_signs_col2")
   local debug_log_path = string.format("/dev/shm/git_plugin_debug_%d.log", vim.fn.getpid())
 
-  -- Track active vimdiff split state
+  -- Track active vimdiff split state and scratch buffer references
   local diff_win = nil
   local diff_buf = nil
 
+  -- Overwrite debug log file with fresh session trace
   local function log_debug(fmt, ...)
     local f = io.open(debug_log_path, "w")
     if f then
@@ -31,6 +34,7 @@ function M.setup(opts)
     end
   end
 
+  -- Append debug traces to log file for review
   local function log_append(fmt, ...)
     local f = io.open(debug_log_path, "a")
     if f then
@@ -39,6 +43,7 @@ function M.setup(opts)
     end
   end
 
+  -- Disable plugin safely and notify user on unrecoverable environment errors
   local function fatal_error_exit(err_msg, target_bufnr)
     M.config.enabled = false
     log_append("%s", err_msg)
@@ -52,12 +57,14 @@ function M.setup(opts)
     end)
   end
 
+  -- Set up highlight groups for native gutter signs and inline word diffs
   vim.api.nvim_set_hl(0, "GitSignsAdd",          { fg = "#2ecc71", default = true })
   vim.api.nvim_set_hl(0, "GitSignsDelete",       { fg = "#e74c3c", default = true })
   vim.api.nvim_set_hl(0, "GitSignsChange",       { fg = "#f1c40f", default = true })
   vim.api.nvim_set_hl(0, "GitSignsWordAdd",      { fg = "#2ecc71", underline = true, default = true })
   vim.api.nvim_set_hl(0, "GitSignsWordChange",   { fg = "#f1c40f", underline = true, default = true })
 
+  -- Helper to split a string into distinct whitespace-separated words with column positions
   local function get_words(str)
     local words = {}
     for start_pos, word in str:gmatch("()(%S+)") do
@@ -73,6 +80,7 @@ function M.setup(opts)
     return words
   end
 
+  -- Main function to evaluate git status and render gutter signs
   local function update_git_signs()
     if not M.config.enabled then return end
 
@@ -95,17 +103,19 @@ function M.setup(opts)
       return
     end
 
+    -- Force signcolumn to 2 columns to prevent layout jitter
     vim.opt_local.signcolumn = "yes:2"
     vim.api.nvim_buf_clear_namespace(bufnr, ns_col1, 0, -1)
     vim.api.nvim_buf_clear_namespace(bufnr, ns_col2, 0, -1)
 
-    -- Let Git handle path resolution natively using ./ relative specifier
+    -- Extract relative filename for git execution
     local filename = vim.fn.fnamemodify(file, ":t")
     if filename == "" then
       fatal_error_exit("Empty filename resolved — Disabling plugin.", bufnr)
       return
     end
 
+    -- Execute git show to fetch HEAD revision content asynchronously
     local cmd_args = { "git", "show", "HEAD:./" .. filename, "--" }
     log_debug("Executing direct system call (argv array, no shell): %s", table.concat(cmd_args, " "))
 
@@ -131,140 +141,97 @@ function M.setup(opts)
         if line_count == 0 then return end
 
         local new_text = table.concat(current_lines, "\n") .. "\n"
-
         if type(old_text) ~= "string" or type(new_text) ~= "string" then return end
 
-        local diff_str = vim.diff(old_text, new_text, { result_type = "unified" })
-        if not diff_str or type(diff_str) ~= "string" then return end
+        -- Fetch precise hunk indices using Neovim's native histogram diff engine
+        local hunks = vim.diff(old_text, new_text, {
+          result_type = "indices",
+          algorithm = "histogram",
+        })
 
-        log_append("================ NEW DIFF EVALUATION for %s ================", filename)
-        log_append("RAW DIFF OUTPUT:\n%s", diff_str)
+        if not hunks then return end
 
-        local current_old_line = 0
-        local current_new_line = 0
-        local current_hunk_new_start = 1
-        local all_deletes = {}
-        local all_adds = {}
+        log_append("================ NEW INDICES EVALUATION for %s ================", filename)
+        log_append("Total hunks detected: %d", #hunks)
 
-        for line in diff_str:gmatch("[^\r\n]+") do
-          if line:match("^@@") then
-            local o_start, n_start = line:match("^@@ %-(%d+),?%d* %+(%d+)")
-            if o_start and n_start then
-              current_old_line = tonumber(o_start)
-              current_new_line = tonumber(n_start)
-              current_hunk_new_start = tonumber(n_start)
-            end
-          elseif line:sub(1, 1) == " " then
-            current_old_line = current_old_line + 1
-            current_new_line = current_new_line + 1
-          elseif line:sub(1, 1) == "-" then
-            table.insert(all_deletes, {
-              text = line:sub(2),
-              old_lnum = current_old_line,
-              hunk_new_start = current_hunk_new_start
-            })
-            current_old_line = current_old_line + 1
-          elseif line:sub(1, 1) == "+" then
-            table.insert(all_adds, { lnum = current_new_line - 1, text = line:sub(2) })
-            current_new_line = current_new_line + 1
-          end
+        local old_lines = vim.split(old_text, "\n", { plain = true })
+        if #old_lines > 0 and old_lines[#old_lines] == "" then
+          table.remove(old_lines)
         end
 
-        log_append("Collected global deletes: %d, adds: %d", #all_deletes, #all_adds)
-
-        local function get_shared_count(s1, s2)
-          local w1 = get_words(s1)
-          local w2 = get_words(s2)
-          local set = {}
-          for _, w in ipairs(w1) do set[w.text] = true end
-          local count = 0
-          for _, w in ipairs(w2) do
-            if set[w.text] then count = count + 1 end
-          end
-          return count
-        end
-
-        local consumed_deletes = {}
         local line_signs = {}
 
-        for _, add_item in ipairs(all_adds) do
-          local target_line = add_item.lnum
-          if target_line >= 0 and target_line < line_count then
-            local line_lines = vim.api.nvim_buf_get_lines(bufnr, target_line, target_line + 1, false)
-            local line_text = line_lines[1] or ""
-            local line_len = #line_text
+        -- Iterate through exact hunk indices provided by the C backend
+        for _, hunk in ipairs(hunks) do
+          local start_a, count_a, start_b, count_b = hunk[1], hunk[2], hunk[3], hunk[4]
+          log_append("Hunk: start_a=%d, count_a=%d, start_b=%d, count_b=%d", start_a, count_a, start_b, count_b)
 
-            local best_del_idx = nil
-            local max_score = -9999
-
-            for d_idx, del_item in ipairs(all_deletes) do
-              local overlap = get_shared_count(add_item.text, del_item.text)
-              local line_distance = math.abs((target_line + 1) - del_item.old_lnum)
-
-              local score = (overlap * 20) - line_distance
-              if overlap > 0 and score > max_score then
-                max_score = score
-                best_del_idx = d_idx
+          if count_a == 0 and count_b > 0 then
+            -- Pure Addition
+            for i = 0, count_b - 1 do
+              local target_line = (start_b - 1) + i
+              if target_line >= 0 and target_line < line_count then
+                line_signs[target_line] = { col1 = "+", col2 = "" }
               end
             end
-
-            local best_del = best_del_idx and all_deletes[best_del_idx] or nil
+          elseif count_a > 0 and count_b == 0 then
+            -- Pure Deletion
+            local target_line = math.min(line_count - 1, math.max(0, start_b - 1))
             if not line_signs[target_line] then
               line_signs[target_line] = { col1 = "", col2 = "" }
             end
-            local s = line_signs[target_line]
+            local existing = (line_signs[target_line].col2 ~= "" and tonumber(line_signs[target_line].col2)) or 0
+            local new_cnt = existing + count_a
+            line_signs[target_line].col2 = new_cnt > 9 and "9" or tostring(new_cnt)
+          else
+            -- Modification Hunk: Mark replacement lines as changed (~)
+            for i = 0, count_b - 1 do
+              local target_line = (start_b - 1) + i
+              if target_line >= 0 and target_line < line_count then
+                line_signs[target_line] = { col1 = "~", col2 = "" }
 
-            if best_del and get_shared_count(add_item.text, best_del.text) >= 2 then
-              consumed_deletes[best_del_idx] = true
-              s.col1 = "~"
-              log_append("Independent match: ADD line %d matched with DEL old_lnum=%d (~)", target_line + 1, best_del.old_lnum)
+                -- Inline word-level diff tracking against corresponding old line if available
+                local old_line_idx = start_a + math.min(i, count_a - 1)
+                local old_line_text = old_lines[old_line_idx] or ""
+                local line_lines = vim.api.nvim_buf_get_lines(bufnr, target_line, target_line + 1, false)
+                local line_text = line_lines[1] or ""
+                local line_len = #line_text
 
-              local old_words = get_words(best_del.text)
-              local new_words = get_words(add_item.text)
+                local old_words = get_words(old_line_text)
+                local new_words = get_words(line_text)
 
-              for _, nword in ipairs(new_words) do
-                local found = false
-                for _, oword in ipairs(old_words) do
-                  if nword.text == oword.text then
-                    found = true
-                    break
+                for _, nword in ipairs(new_words) do
+                  local found = false
+                  for _, oword in ipairs(old_words) do
+                    if nword.text == oword.text then
+                      found = true
+                      break
+                    end
+                  end
+                  if not found and nword.start < line_len then
+                    local safe_end = math.min(nword.finish, line_len)
+                    vim.api.nvim_buf_set_extmark(bufnr, ns_col1, target_line, nword.start, {
+                      end_col = safe_end,
+                      hl_group = "GitSignsWordChange",
+                      priority = 50,
+                    })
                   end
                 end
-                if not found and nword.start < line_len then
-                  local safe_end = math.min(nword.finish, line_len)
-                  vim.api.nvim_buf_set_extmark(bufnr, ns_col1, target_line, nword.start, {
-                    end_col = safe_end,
-                    hl_group = "GitSignsWordChange",
-                    priority = 50,
-                  })
-                end
               end
-            else
-              s.col1 = "+"
+            end
+
+            -- Handle excess deleted lines if replacement reduced total line count
+            if count_a > count_b then
+              local excess_del = count_a - count_b
+              local target_line = math.min(line_count - 1, math.max(0, (start_b - 1) + count_b - 1))
+              if not line_signs[target_line] then
+                line_signs[target_line] = { col1 = "~", col2 = "" }
+              end
+              local existing = (line_signs[target_line].col2 ~= "" and tonumber(line_signs[target_line].col2)) or 0
+              local new_cnt = existing + excess_del
+              line_signs[target_line].col2 = new_cnt > 9 and "9" or tostring(new_cnt)
             end
           end
-        end
-
-        local unconsumed_groups = {}
-        for d_idx, del_item in ipairs(all_deletes) do
-          if not consumed_deletes[d_idx] then
-            -- Anchor unconsumed deletes just before the hunk (0-indexed) to prevent column collision
-            local target_line = del_item.hunk_new_start - 2
-            target_line = math.min(line_count - 1, math.max(0, target_line))
-
-            unconsumed_groups[target_line] = (unconsumed_groups[target_line] or 0) + 1
-            log_append("Unconsumed DEL at old_lnum=%d anchored to target_line=%d", del_item.old_lnum, target_line + 1)
-          end
-        end
-
-        for target_line, count in pairs(unconsumed_groups) do
-          if not line_signs[target_line] then
-            line_signs[target_line] = { col1 = "", col2 = "" }
-          end
-          local s = line_signs[target_line]
-          local existing = (s.col2 ~= "" and tonumber(s.col2)) or 0
-          local new_cnt = existing + count
-          s.col2 = new_cnt > 9 and "9" or tostring(new_cnt)
         end
 
         log_append("FINAL LINE SIGNS MAPPING:")
@@ -272,11 +239,9 @@ function M.setup(opts)
           log_append("  line %d (1-idx: %d): col1='%s', col2='%s'", lnum, lnum + 1, s.col1, s.col2)
         end
 
-        -- Render clean compact signs without forced padding overhead
-        log_append("--- EXTMARK RENDERING INSPECTION ---")
+        -- Render gutter signs into respective namespaces without gutter jitter
         for lnum = 0, line_count - 1 do
           local s = line_signs[lnum]
-
           if s then
             if s.col1 ~= "" then
               local hl1 = (s.col1 == "~") and "GitSignsChange" or "GitSignsAdd"
@@ -285,7 +250,6 @@ function M.setup(opts)
                 sign_hl_group = hl1,
                 priority = 50,
               })
-              log_append("  [Col1 Sign] line=%d (1-idx: %d) text='%s'", lnum, lnum + 1, s.col1)
             end
 
             if s.col2 ~= "" then
@@ -294,26 +258,14 @@ function M.setup(opts)
                 sign_hl_group = "GitSignsDelete",
                 priority = 50,
               })
-              log_append("  [Col2 Sign] line=%d (1-idx: %d) text='%s'", lnum, lnum + 1, s.col2)
             end
-          end
-        end
-
-        -- Inspect final active extmarks across all namespaces
-        local all_extmarks = vim.api.nvim_buf_get_extmarks(bufnr, -1, 0, -1, { details = true })
-        log_append("Total buffer extmarks active: %d", #all_extmarks)
-        for _, em in ipairs(all_extmarks) do
-          local id, row, col, details = em[1], em[2], em[3], em[4]
-          if details.sign_text then
-            log_append("  [Active Extmark] ns=%d line=%d (1-idx: %d) text='%s' priority=%d",
-              details.ns_id, row, row + 1, details.sign_text, details.priority or 0)
           end
         end
       end)
     end)
   end
 
-  -- User command to toggle plugin on/off
+  -- User command to toggle plugin on/off dynamically
   vim.api.nvim_create_user_command("GitSignsToggle", function()
     M.config.enabled = not M.config.enabled
     print("Native Git Signs enabled: " .. tostring(M.config.enabled))
@@ -330,7 +282,7 @@ function M.setup(opts)
 
   -- User command to toggle read-only in-memory vimdiff split view against HEAD
   vim.api.nvim_create_user_command(M.config.diff_command, function()
-    -- If diff window is already open and valid, tear it down
+    -- If diff window is already open and valid, tear it down cleanly
     if diff_win and vim.api.nvim_win_is_valid(diff_win) then
       vim.cmd("diffoff!")
       vim.api.nvim_win_close(diff_win, true)
@@ -375,7 +327,7 @@ function M.setup(opts)
       return
     end
 
-    -- Set buffer name for clarity in statusline
+    -- Set unique buffer name for statusline identification
     vim.api.nvim_buf_set_name(diff_buf, target_buf_name)
 
     -- Populate memory buffer lines from git show output
@@ -385,7 +337,7 @@ function M.setup(opts)
     end
     vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, lines)
 
-    -- Enforce strict read-only restrictions on the base buffer
+    -- Enforce strict read-only restrictions on the base scratch buffer
     vim.bo[diff_buf].readonly = true
     vim.bo[diff_buf].modifiable = false
     vim.bo[diff_buf].buftype = "nofile"
@@ -396,7 +348,7 @@ function M.setup(opts)
     diff_win = vim.api.nvim_get_current_win()
     vim.api.nvim_win_set_buf(diff_win, diff_buf)
 
-    -- Enable diff mode on the base memory buffer
+    -- Enable native diff mode on the base memory buffer
     vim.cmd("diffthis")
 
     -- Move back to original buffer, enable diff mode, and sync folding/scroll
@@ -413,6 +365,7 @@ function M.setup(opts)
     print("GitSigns inspect log written to " .. debug_log_path)
   end, {})
 
+  -- Automatic event triggers to refresh signs on buffer events
   vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained" }, {
     callback = update_git_signs,
   })
