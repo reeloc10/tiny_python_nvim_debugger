@@ -34,21 +34,21 @@ Default `<leader>` key is `Space`:
 * `<leader>mq` — Terminate session
 * `<leader>mV` — Debugger Toggle Verbose Mode
 
-:TinyBreakpoint
-:TinyListBreakpoints
-:TinyResetBreakpoints
-:TinyQuit
-:TinyContinue
-:TinyNext
-:TinyStep
-:TinyStack
-:TinyEvalCword
-:TinyEvalInput
-:TinyVerbose
+* `:TinyBreakpoint`
+* `:TinyListBreakpoints`
+* `:TinyResetBreakpoints`
+* `:TinyQuit`
+* `:TinyContinue`
+* `:TinyNext`
+* `:TinyStep`
+* `:TinyStack`
+* `:TinyEvalCword`
+* `:TinyEvalInput`
+* `:TinyVerbose`
 
-:GitSignsToggle
-:GitSignsDiff
-:GitSignsInspect
+* `:GitSignsToggle`
+* `:GitSignsDiff`
+* `:GitSignsInspect`
 
 ## License
 Licensed under the [Apache License, Version 2.0](LICENSE).
