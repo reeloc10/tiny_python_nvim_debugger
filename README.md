@@ -48,9 +48,6 @@ Default `<leader>` key is `Space`. Every shortcut maps directly to its correspon
 | **Inspect Git Hunk** | `:GitSignsInspect` |
 
 ### LSP & Diagnostic Keybindings & Commands
-
-Default `<leader>` key is `Space`. Every shortcut maps directly to its corresponding Neovim Ex command.
-
 | Action | Leader Shortcut / Motion | Ex Command |
 | :--- | :--- | :--- |
 | **Previous diagnostic** | `[d` | `:ReelocLspPrevDiagnostic` |
