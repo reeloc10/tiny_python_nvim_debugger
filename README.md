@@ -25,6 +25,7 @@ python3 <cloned folder>/tiny_debugger.py <nvim pid> target.py
 
 Default `<leader>` key is `Space`. Every shortcut maps directly to its corresponding Neovim Ex command.
 
+### Debugger
 | Action | Leader Shortcut | Ex Command |
 | :--- | :--- | :--- |
 | **Toggle breakpoint** *(max 5)* | `<leader>mb` | `:TinyBreakpoint` |
@@ -45,6 +46,19 @@ Default `<leader>` key is `Space`. Every shortcut maps directly to its correspon
 | **Toggle GitSigns** | `:GitSignsToggle` |
 | **View Git Diff** | `:GitSignsDiff` |
 | **Inspect Git Hunk** | `:GitSignsInspect` |
+
+### LSP & Diagnostic Keybindings & Commands
+
+Default `<leader>` key is `Space`. Every shortcut maps directly to its corresponding Neovim Ex command.
+
+| Action | Leader Shortcut / Motion | Ex Command |
+| :--- | :--- | :--- |
+| **Previous diagnostic** | `[d` | `:ReelocLspPrevDiagnostic` |
+| **Next diagnostic** | `]d` | `:ReelocLspNextDiagnostic` |
+| **Show diagnostic error** | `<leader>e` | `:ReelocLspDiagnosticFloat` |
+| **LSP Code Action** | `<leader>ca` | `:ReelocLspCodeAction` |
+| **Ruff auto-fix & format** | `<leader>f` | `:ReelocLspRuffFix` |
+| **Check attached LSP clients** | — | `:ReelocLspStatus` |
 
 ## License
 Licensed under the [Apache License, Version 2.0](LICENSE).
