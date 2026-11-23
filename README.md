@@ -63,5 +63,16 @@ Default `<leader>` key is `Space`. Every shortcut maps directly to its correspon
 | **Ruff auto-fix & format** | `<leader>f` | `:ReelocLspRuffFix` |
 | **Check attached LSP clients** | — | `:ReelocLspStatus` |
 
+### Terminal Split & Navigation
+| Action | Leader Shortcut / Motion | Ex Command |
+| :--- | :--- | :--- |
+| **Open bottom terminal split** | `<leader>ft` | — |
+| **Print AST node info** | `<leader>ni` | — |
+| **Inspect live AST tree** | `<leader>nt` | `:InspectTree` |
+| **Select inner function / class** | `vif` / `vic` | — |
+| **Select around function / class** | `vaf` / `vac` | — |
+| **Next / Previous function** | `]f` / `[f` | — |
+| **Next / Previous class** | `]c` / `[c` | — |
+
 ## License
 Licensed under the [Apache License, Version 2.0](LICENSE).
