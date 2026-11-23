@@ -61,9 +61,6 @@ function M.setup()
         vim.lsp.completion.get()
       end, vim.tbl_extend('force', opts, { desc = 'Trigger LSP completion' }))
 
-      -- Automatically trigger completion instantly after typing a dot
-      vim.keymap.set('i', '.', '.<C-x><C-o>', { buffer = args.buf, expr = true, silent = true })
-
       -- Show function internal docs (hover)
       vim.keymap.set('n', 'K', vim.lsp.buf.hover,
         vim.tbl_extend('force', opts, { desc = 'Show function documentation' }))
