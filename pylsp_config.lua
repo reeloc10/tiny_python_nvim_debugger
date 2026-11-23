@@ -12,16 +12,92 @@ function M.setup()
     update_in_insert = false,
   })
 
-  -- 2. Attach pylsp and ruff natively to Python buffers
+  -- 2. Configure native completion menu behavior with floating docstring popup
+  vim.opt.completeopt = { 'menu', 'menuone', 'noinsert', 'noselect', 'popup' }
+
+  -- 3. Super-Tab: Accept completion item OR jump to next parameter snippet tabstop
+  vim.keymap.set({ 'i', 's' }, '<Tab>', function()
+    if vim.fn.pumvisible() == 1 then
+      -- If no item is selected yet (because of noselect), select first and confirm
+      local info = vim.fn.complete_info({ 'selected' })
+      if info.selected == -1 then
+        return '<C-n><C-y>'
+      end
+      return '<C-y>'
+    elseif vim.snippet.active({ direction = 1 }) then
+      return '<Cmd>lua vim.snippet.jump(1)<CR>'
+    else
+      return '<Tab>'
+    end
+  end, { expr = true, desc = 'Accept completion or jump snippet forward' })
+
+  vim.keymap.set({ 'i', 's' }, '<S-Tab>', function()
+    if vim.fn.pumvisible() == 1 then
+      return '<C-p>'
+    elseif vim.snippet.active({ direction = -1 }) then
+      return '<Cmd>lua vim.snippet.jump(-1)<CR>'
+    else
+      return '<S-Tab>'
+    end
+  end, { expr = true, desc = 'Previous completion or jump snippet backward' })
+
+  -- 4. Enable native LSP completion & doc bindings when a server attaches
+  vim.api.nvim_create_autocmd('LspAttach', {
+    callback = function(args)
+      local client = vim.lsp.get_client_by_id(args.data.client_id)
+      if not client then return end
+
+      local opts = { buffer = args.buf }
+
+      -- Enable native LSP completion with autotrigger (e.g., after typing `.`)
+      if client:supports_method('textDocument/completion') then
+        vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
+      end
+
+      -- Trigger completion manually with Ctrl-Space
+      vim.keymap.set('i', '<C-Space>', function()
+        vim.lsp.completion.get()
+      end, vim.tbl_extend('force', opts, { desc = 'Trigger LSP completion' }))
+
+      -- Show function internal docs (hover)
+      vim.keymap.set('n', 'K', vim.lsp.buf.hover,
+        vim.tbl_extend('force', opts, { desc = 'Show function documentation' }))
+
+      -- Show parameter signature while inside parentheses
+      vim.keymap.set('i', '<C-h>', vim.lsp.buf.signature_help,
+        vim.tbl_extend('force', opts, { desc = 'Show function signature' }))
+      vim.keymap.set('i', '<M-s>', vim.lsp.buf.signature_help,
+        vim.tbl_extend('force', opts, { desc = 'Show function signature' }))
+    end,
+  })
+
+  -- vim.lsp.set_log_level("debug")
+  -- log file: ~/.local/state/nvim/lsp.log
+  -- 5. Attach pylsp and ruff natively to Python buffers
   vim.api.nvim_create_autocmd('FileType', {
     pattern = 'python',
     callback = function()
       local root = vim.uv.cwd()
 
+      -- Explicitly enable snippetSupport so pylsp honors include_params = true
+      local capabilities = vim.lsp.protocol.make_client_capabilities()
+      capabilities.textDocument.completion.completionItem.snippetSupport = true
+
       vim.lsp.start({
         name = 'pylsp',
         cmd = { 'pylsp' },
         root_dir = root,
+        capabilities = capabilities,
+        settings = {
+          pylsp = {
+            plugins = {
+              jedi_completion = {
+                enabled = true,
+                include_params = true,
+              },
+            },
+          },
+        },
       })
 
       vim.lsp.start({
@@ -32,7 +108,7 @@ function M.setup()
     end,
   })
 
-  -- 3. Diagnostic navigation and inspection keymaps, Autocorrection keymaps
+  -- 6. Diagnostic navigation and inspection keymaps, Autocorrection keymaps
   local lsp_actions = {
     {
       mode = 'n',
@@ -102,7 +178,6 @@ function M.setup()
       vim.api.nvim_create_user_command(action.cmd, action.rhs, { desc = action.desc })
     end
   end
-
 end
 
 return M
