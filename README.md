@@ -50,9 +50,14 @@ Default `<leader>` key is `Space`. Every shortcut maps directly to its correspon
 ### LSP & Diagnostic Keybindings & Commands
 | Action | Leader Shortcut / Motion | Ex Command |
 | :--- | :--- | :--- |
+| **Manual LSP completion trigger** | `<C-Space>` (insert) | — |
+| **Show function documentation** | `K` (normal) | — |
+| **Show function signature** | `<C-h>` / `<M-s>` (insert) | — |
 | **Previous diagnostic** | `[d` | `:ReelocLspPrevDiagnostic` |
 | **Next diagnostic** | `]d` | `:ReelocLspNextDiagnostic` |
 | **Show diagnostic error** | `<leader>e` | `:ReelocLspDiagnosticFloat` |
+| **Workspace diagnostics to quickfix** | `<leader>qw` | `:ReelocLspWorkspaceDiagnostics` |
+| **Symbol references to quickfix** | `gr` | — |
 | **LSP Code Action** | `<leader>ca` | `:ReelocLspCodeAction` |
 | **Ruff auto-fix & format** | `<leader>f` | `:ReelocLspRuffFix` |
 | **Check attached LSP clients** | — | `:ReelocLspStatus` |
