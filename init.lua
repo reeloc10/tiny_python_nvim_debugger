@@ -80,6 +80,15 @@ vim.api.nvim_create_autocmd('FileType', {
   end,
 })
 
+vim.keymap.set('n', '<leader>ft', function()
+  vim.cmd('botright 12split | term')
+  vim.opt_local.number = false
+  vim.opt_local.relativenumber = false
+  vim.opt_local.signcolumn = 'no'
+  vim.opt_local.list = false
+  vim.cmd('startinsert')
+end, { desc = 'Open bottom horizontal terminal split' })
+
 -- Additional Developer & Tree-Sitter Inspection Features
 
 -- 1. Print current Tree-sitter AST node under cursor (<leader>ni)
