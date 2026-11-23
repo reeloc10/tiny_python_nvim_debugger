@@ -49,9 +49,15 @@ function M.setup()
 
       local opts = { buffer = args.buf }
 
-      -- Enable native LSP completion with autotrigger (e.g., after typing `.`)
+      -- Enable native LSP completion with autotrigger
       if client:supports_method('textDocument/completion') then
-        vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
+        vim.lsp.completion.enable(true, client.id, args.buf, {
+          autotrigger = true,
+          -- Trigger completion automatically on alphanumeric input or trigger chars
+          trigger = function(trigger_args)
+            return true
+          end,
+        })
       end
 
       -- Trigger completion manually with Ctrl-Space
@@ -68,6 +74,16 @@ function M.setup()
         vim.tbl_extend('force', opts, { desc = 'Show function signature' }))
       vim.keymap.set('i', '<M-s>', vim.lsp.buf.signature_help,
         vim.tbl_extend('force', opts, { desc = 'Show function signature' }))
+
+      -- Cross-file symbol references mapping (quickfix navigation)
+      vim.keymap.set('n', 'gr', function()
+        vim.lsp.buf.references(nil, {
+          on_list = function(options)
+            vim.fn.setqflist({}, ' ', options)
+            vim.cmd('copen')
+          end,
+        })
+      end, vim.tbl_extend('force', opts, { desc = 'List symbol references in quickfix' }))
     end,
   })
 
@@ -130,6 +146,15 @@ function M.setup()
       rhs = function() vim.diagnostic.open_float() end,
       desc = 'Show diagnostic error float',
       cmd = 'ReelocLspDiagnosticFloat',
+    },
+    {
+      mode = 'n',
+      lhs = '<leader>qw',
+      rhs = function()
+        vim.diagnostic.setqflist({ open = true })
+      end,
+      desc = 'Populate quickfix with workspace diagnostics',
+      cmd = 'ReelocLspWorkspaceDiagnostics',
     },
     {
       mode = 'n',
