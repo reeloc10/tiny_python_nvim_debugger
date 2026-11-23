@@ -61,7 +61,52 @@ vim.api.nvim_create_autocmd("BufReadPost", {
   end,
 })
 
+-- Ensure Neovim picks up system tree-sitter queries from Fedora RPM path and repo lib64
+vim.opt.runtimepath:append('/usr/share/tree-sitter')
+vim.opt.runtimepath:append(config_dir .. '/lib64')
+
+-- Explicitly register the system tree-sitter Python parser shared library
+vim.treesitter.language.register('python', 'python')
+
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'python' },
+  callback = function()
+    -- Ensure the language is loaded from the system RPM path if automatic lookup fails
+    local ok = pcall(vim.treesitter.start)
+    if not ok then
+      -- Fallback: load parser manually from the system RPM path
+      vim.cmd('packadd nvim-treesitter')
+    end
+  end,
+})
+
+-- Additional Developer & Tree-Sitter Inspection Features
+
+-- 1. Print current Tree-sitter AST node under cursor (<leader>ni)
+vim.keymap.set('n', '<leader>ni', function()
+  local node = vim.treesitter.get_node()
+  if not node then
+    print("No tree-sitter node found")
+    return
+  end
+  if not node:named() then
+    node = node:parent() or node
+  end
+  print(string.format("AST Node: [%s] -> text: %q", node:type(), vim.treesitter.get_node_text(node, 0)))
+end, { desc = 'Print current Tree-sitter node info' })
+
 -- Load modular configurations
 require("pylsp_config").setup()
 require("git_plugin").setup({ enabled = false }) -- starts disabled
 require("tiny_debugger").setup()
+
+-- 2. Quick diagnostic float with feedback if line is clean (<leader>d)
+vim.keymap.set('n', '<leader>d', function()
+  local win = vim.diagnostic.open_float()
+  if not win then
+    print("No diagnostics on current line")
+  end
+end, { desc = 'Show line diagnostics' })
+
+-- 3. Populate location list with all buffer diagnostics (<leader>q)
+vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'List all buffer diagnostics' })
