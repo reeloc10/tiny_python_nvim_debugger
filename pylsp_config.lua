@@ -49,14 +49,10 @@ function M.setup()
 
       local opts = { buffer = args.buf }
 
-      -- Enable native LSP completion with autotrigger
+      -- Enable native LSP completion
       if client:supports_method('textDocument/completion') then
         vim.lsp.completion.enable(true, client.id, args.buf, {
           autotrigger = true,
-          -- Trigger completion automatically on alphanumeric input or trigger chars
-          trigger = function(trigger_args)
-            return true
-          end,
         })
       end
 
@@ -64,6 +60,9 @@ function M.setup()
       vim.keymap.set('i', '<C-Space>', function()
         vim.lsp.completion.get()
       end, vim.tbl_extend('force', opts, { desc = 'Trigger LSP completion' }))
+
+      -- Automatically trigger completion instantly after typing a dot
+      vim.keymap.set('i', '.', '.<C-x><C-o>', { buffer = args.buf, expr = true, silent = true })
 
       -- Show function internal docs (hover)
       vim.keymap.set('n', 'K', vim.lsp.buf.hover,
