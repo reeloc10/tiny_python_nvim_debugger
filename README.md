@@ -51,6 +51,7 @@ Default `<leader>` key is `Space`. Every shortcut maps directly to its correspon
 | Action | Leader Shortcut / Motion | Ex Command |
 | :--- | :--- | :--- |
 | **Manual LSP completion trigger** | `<C-Space>` (insert) | — |
+| **Automatic member completion trigger** | `.` (insert) | — |
 | **Show function documentation** | `K` (normal) | — |
 | **Show function signature** | `<C-h>` / `<M-s>` (insert) | — |
 | **Previous diagnostic** | `[d` | `:ReelocLspPrevDiagnostic` |
