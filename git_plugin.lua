@@ -369,6 +369,37 @@ function M.setup(opts)
   vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained" }, {
     callback = update_git_signs,
   })
+
+  -- Command :GitResetFile to revert current file to HEAD and reload
+  vim.api.nvim_create_user_command('GitResetFile', function()
+    local filepath = vim.api.nvim_buf_get_name(0)
+    if filepath == "" then return end
+
+    -- Print a clean red warning message in the command area using ErrorMsg highlight
+    vim.api.nvim_echo({
+      { "Revert file to HEAD and reload? [y/N] (Default: Keep changes): ", "ErrorMsg" }
+    }, false, {})
+
+    -- Get user input
+    local ok, input = pcall(vim.fn.input, "")
+    if not ok then
+      print("\nReset cancelled.")
+      return
+    end
+
+    -- Default to keeping/cancelling if input is empty or anything other than explicit 'y'/'yes'
+    local confirm = input:lower()
+    if confirm ~= "y" and confirm ~= "yes" then
+      print("\nReset cancelled. Keeping changes.")
+      return
+    end
+
+    -- Revert file on disk to HEAD, then force-reload buffer
+    vim.fn.system({ "git", "checkout", "HEAD", "--", filepath })
+    vim.cmd("edit!")
+    print("\nReverted to HEAD and reloaded.")
+  end, {})
+
 end
 
 return M
