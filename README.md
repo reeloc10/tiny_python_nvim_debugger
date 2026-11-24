@@ -94,5 +94,18 @@ Native workspace search powered by `ripgrep` (`rg`) and Neovim's built-in quickf
 | **Next / previous quickfix match** | `]q` / `[q` (normal) | `:cnext` / `:cprev` |
 | **Fuzzy file finder** | — | `:find <partial><Tab>` |
 
+### Useful Ad-Hoc Diagnostic & Shell Commands
+Quick reference snippets for running tests, switching shells, and inspecting mappings on the fly.
+
+| Task | Command |
+| :--- | :--- |
+| **Open file in horizontal split** | `:split | find filename.py` |
+| **Open file in vertical split** | `:vsplit | find filename.py` |
+| **Switch active shell to Bash** | `:lua vim.o.shell = '/bin/bash'` |
+| **Switch active shell to Zsh** | `:lua vim.o.shell = '/bin/zsh'` |
+| **Open terminal running Bash** | `:split | terminal bash` |
+| **Open terminal running Zsh** | `:split | terminal zsh` |
+| **Inspect mapping origin and scope** | `:verbose nmap <Space>e` |
+
 ## License
 Licensed under the [Apache License, Version 2.0](LICENSE).
