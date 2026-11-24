@@ -49,10 +49,26 @@ function M.setup()
 
       local opts = { buffer = args.buf }
 
-      -- Enable native LSP completion
+      -- Enable native LSP completion (triggerCharacters + as-you-type identifier letters)
       if client:supports_method('textDocument/completion') then
         vim.lsp.completion.enable(true, client.id, args.buf, {
           autotrigger = true,
+        })
+
+        local comp_group = vim.api.nvim_create_augroup('ReelocLspAutoComplete', { clear = false })
+        vim.api.nvim_clear_autocmds({ group = comp_group, buffer = args.buf })
+        vim.api.nvim_create_autocmd('InsertCharPre', {
+          group = comp_group,
+          buffer = args.buf,
+          callback = function()
+            if vim.fn.pumvisible() == 0 and vim.v.char:match('[%w_]') then
+              vim.schedule(function()
+                if vim.fn.mode() == 'i' and vim.fn.pumvisible() == 0 then
+                  vim.lsp.completion.get()
+                end
+              end)
+            end
+          end,
         })
       end
 
@@ -157,8 +173,7 @@ function M.setup()
       cmd = 'ReelocLspNextDiagnostic',
     },
     {
-      mode = 'n',
-      lhs = '<leader>e',
+      -- Buffer-local <leader>e is mapped in LspAttach; keep Ex command available
       rhs = function() vim.diagnostic.open_float() end,
       desc = 'Show diagnostic error float',
       cmd = 'ReelocLspDiagnosticFloat',

@@ -52,12 +52,12 @@ Default `<leader>` key is `Space`. Every shortcut maps directly to its correspon
 | :--- | :--- | :--- |
 | **Go to definition** | `gd` (normal) | — |
 | **Manual LSP completion trigger** | `<C-Space>` (insert) | — |
-| **Automatic member completion trigger** | `.` (insert) | — |
+| **Automatic completion (as-you-type & member trigger)** | `.` / typing (insert) | — |
 | **Show function documentation** | `K` (normal) | — |
 | **Show function signature** | `<C-h>` / `<M-s>` (insert) | — |
 | **Previous diagnostic** | `[d` | `:ReelocLspPrevDiagnostic` |
 | **Next diagnostic** | `]d` | `:ReelocLspNextDiagnostic` |
-| **Show line diagnostics** *(also opens automatically on 300ms cursor hover)* | `<leader>e` (normal) | — |
+| **Show / focus line diagnostics** *(passive hover opens non-focusable float after 300ms; invoking jumps into float)* | `<leader>e` (normal) | `:ReelocLspDiagnosticFloat` |
 | **Workspace diagnostics to quickfix** | `<leader>qw` | `:ReelocLspWorkspaceDiagnostics` |
 | **Symbol references to quickfix** | `gr` | — |
 | **LSP Code Action** | `<leader>ca` | `:ReelocLspCodeAction` |
