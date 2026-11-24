@@ -61,11 +61,11 @@ function M.setup(opts)
     return res.code == 0
   end
 
-  -- Helper to fetch recent git commits with hash and subject descriptions
+  -- Helper to fetch recent git commits with hash and subject descriptions from HEAD
   local function fetch_git_commits(limit)
-    limit = limit or 40
+    limit = limit or 30
     local res = vim.system({
-      "git", "log", "--all", "--format=%h %s", "-n", tostring(limit)
+      "git", "log", "--format=%h %s", "-n", tostring(limit)
     }, { text = true }):wait()
 
     local items = {}
@@ -411,7 +411,7 @@ function M.setup(opts)
 
   -- Interactive picker using vim.ui.select to choose a base commit hash/ref with descriptions
   local function select_base_and_diff()
-    local items = fetch_git_commits(40)
+    local items = fetch_git_commits(30)
     if #items == 0 then
       print("[tiny_debugger] No git commits found.")
       return
@@ -462,15 +462,7 @@ function M.setup(opts)
   end, {
     nargs = "*",
     complete = function(lead)
-      local candidates = fetch_git_commits(40)
-      -- Fetch local branches and tags
-      local ref_res = vim.system({ "git", "for-each-ref", "--format=%(refname:short)", "refs/heads/", "refs/tags/" }, { text = true }):wait()
-      if ref_res.code == 0 and ref_res.stdout then
-        for ref in ref_res.stdout:gmatch("[^\r\n]+") do
-          table.insert(candidates, ref)
-        end
-      end
-
+      local candidates = fetch_git_commits(30)
       local matches = {}
       for _, c in ipairs(candidates) do
         if c:find(lead, 1, true) == 1 then
