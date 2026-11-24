@@ -40,8 +40,11 @@ def main() -> None:
     # 2. Test method autocompletion:
     # Type 'telemetry.' and observe native completion popup
     telemetry.register_viewer("viewer_one")
+    if True:
+        pass
+    if False:
+        pass
 
-    telemetry.register_viewer(
 
     # 3. Test function call completion:
     # Type 'calc' and let completion suggest calculate_bitrate
