@@ -19,7 +19,7 @@ class StreamTelemetry:
         self.fps = fps
         self._active_connections = 0
 
-    def register_viewer(self, username: str) -> None:
+    def register_viewer(self, username: str, arg2: str = "ads") -> None:
         """Register a new viewer connection."""
         self._active_connections += 1
         print(f"[{self.broadcaster}] Viewer joined: {username}")
@@ -40,6 +40,8 @@ def main() -> None:
     # 2. Test method autocompletion:
     # Type 'telemetry.' and observe native completion popup
     telemetry.register_viewer("viewer_one")
+
+    telemetry.register_viewer(
 
     # 3. Test function call completion:
     # Type 'calc' and let completion suggest calculate_bitrate
