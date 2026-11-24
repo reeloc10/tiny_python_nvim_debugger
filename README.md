@@ -52,6 +52,7 @@ Default `<leader>` key is `Space`. Every shortcut maps directly to its correspon
 | Action | Leader Shortcut | Ex Command |
 | :--- | :--- | :--- |
 | **Toggle breakpoint** *(max 5)* | `<leader>mb` | `:TinyBreakpoint` |
+| **Launch target & debug** | *N/A* | `:TinyLaunch [args]` |
 | **Continue / Start execution** | `<leader>mc` | `:TinyContinue` |
 | **Step over** | `<leader>mn` | `:TinyNext` |
 | **Step into** | `<leader>mS` | `:TinyStep` |
