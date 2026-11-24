@@ -84,5 +84,15 @@ Automatically closes matching brackets and quotes (`()`, `[]`, `{}`, `""`, `''`)
 | **Next / Previous function** | `]f` / `[f` | — |
 | **Next / Previous class** | `]c` / `[c` | — |
 
+### Fast Grep & Fuzzy File Search (`fastgrep.lua`)
+Native workspace search powered by `ripgrep` (`rg`) and Neovim's built-in quickfix and fuzzy `:find` menu—requiring zero third-party fuzzy-finder plugins.
+
+| Action | Leader Shortcut / Motion | Ex Command |
+| :--- | :--- | :--- |
+| **Search workspace text (ripgrep)** | `<leader>fg` (normal) | `:ReelocFastGrep [pattern]` |
+| **Search word under cursor** | `<leader>fw` (normal) | `:ReelocFastGrepWord` |
+| **Next / previous quickfix match** | `]q` / `[q` (normal) | `:cnext` / `:cprev` |
+| **Fuzzy file finder** | — | `:find <partial><Tab>` |
+
 ## License
 Licensed under the [Apache License, Version 2.0](LICENSE).

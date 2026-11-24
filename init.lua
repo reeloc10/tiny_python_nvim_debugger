@@ -77,6 +77,7 @@ require("pylsp_config").setup()
 require("autopairing").setup()
 require("git_plugin").setup({ enabled = false }) -- starts disabled
 require("tiny_debugger").setup()
+require('fastgrep').setup()
 
 -- Quick diagnostic float with feedback if line is clean (<leader>d)
 vim.keymap.set('n', '<leader>d', function()
