@@ -27,6 +27,13 @@ Suggested though not mandatory; some functionality or terminal enhancements may 
 - **LSP & Linting (`pylsp_config.lua`):** Python analysis and formatting.
 
 ## Testing
+
+### Development
+
+```bash
+nvim -u <cloned folder>/init.lua filename.py
+```
+### Debugger
 Run in two separate terminals (in any order):
 
 ```bash
