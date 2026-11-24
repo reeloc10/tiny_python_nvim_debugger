@@ -51,5 +51,15 @@ if [ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]; then
     source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 fi
 
-# Example minimal prompt: green user@host in blue directory
-PROMPT="%{$fg[green]%}[%n@%m]%{$reset_color%}:%{$fg[blue]%}%~%{$reset_color%}%# "
+# Example prompt: green user@host in blue directory, with current branch
+# Load version control information module
+autoload -Uz vcs_info
+precmd() { vcs_info }
+
+# Format the vcs_info output (displays git branch)
+zstyle ':vcs_info:git:*' formats ' (%b)'
+zstyle ':vcs_info:*' enable git
+
+# Include ${vcs_info_msg_0_} in your PROMPT
+setopt prompt_subst
+PROMPT='%{$fg[green]%}[%n@%m]%{$reset_color%}:%{$fg[blue]%}%~%{$reset_color%}%{$fg[yellow]%}${vcs_info_msg_0_}%{$reset_color%}%# '
