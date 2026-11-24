@@ -65,6 +65,26 @@ function M.setup()
       vim.keymap.set('n', 'K', vim.lsp.buf.hover,
         vim.tbl_extend('force', opts, { desc = 'Show function documentation' }))
 
+      -- Buffer-local LSP keymaps and hover settings
+      vim.keymap.set('n', 'gd', vim.lsp.buf.definition,
+        vim.tbl_extend('force', opts, { desc = 'Go to definition' }))
+      vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float,
+        vim.tbl_extend('force', opts, { desc = 'Show line diagnostics' }))
+
+      -- Trigger CursorHold after 300ms (default is 4000ms)
+      vim.o.updatetime = 300
+
+      -- Automatically show diagnostics in a floating window on hover for this buffer
+      local diag_group = vim.api.nvim_create_augroup("LspDiagnosticsHover", { clear = false })
+      vim.api.nvim_clear_autocmds({ group = diag_group, buffer = opts.buffer })
+      vim.api.nvim_create_autocmd("CursorHold", {
+        group = diag_group,
+        buffer = opts.buffer,
+        callback = function()
+          vim.diagnostic.open_float(nil, { focusable = false })
+        end,
+      })
+
       -- Show parameter signature while inside parentheses
       vim.keymap.set('i', '<C-h>', vim.lsp.buf.signature_help,
         vim.tbl_extend('force', opts, { desc = 'Show function signature' }))

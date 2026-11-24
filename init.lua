@@ -71,23 +71,6 @@ vim.keymap.set('n', '<leader>ft', function()
   vim.cmd('startinsert')
 end, { desc = 'Open bottom horizontal terminal split' })
 
--- Global LSP keymaps and hover settings
-vim.keymap.set('n', 'gd', vim.lsp.buf.definition, { desc = 'Go to definition' })
-vim.keymap.set('n', 'K', vim.lsp.buf.hover, { desc = 'Show hover documentation' })
-vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show line diagnostics' })
-
--- Trigger CursorHold after 300ms (default is 4000ms)
-vim.o.updatetime = 300
-
--- Automatically show diagnostics in a floating window on hover
-local diag_group = vim.api.nvim_create_augroup("LspDiagnosticsHover", { clear = true })
-vim.api.nvim_create_autocmd("CursorHold", {
-  group = diag_group,
-  callback = function()
-    vim.diagnostic.open_float(nil, { focusable = false })
-  end,
-})
-
 -- Load modular configurations
 require("treesitter").setup({ config_dir = config_dir })
 require("pylsp_config").setup()
