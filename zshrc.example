@@ -1,0 +1,55 @@
+# ~/.zshrc (Example)
+# Minimal Zsh configuration for Fedora 45 workspace
+
+# Fedora 45 requirements:
+# zsh
+# zsh-autosuggestions
+# zsh-syntax-highlighting
+
+# History configuration
+# Lines configured by zsh-newuser-install
+HISTFILE=~/.histfile
+HISTSIZE=100000
+SAVEHIST=100000
+# End of lines configured by zsh-newuser-install
+
+# Appends your newly entered commands instead of overwriting
+setopt appendhistory
+# Imports commands typed in other windows into your current session on the fly.
+setopt sharehistory
+
+# Basic completion styling
+autoload -Uz compinit
+compinit
+
+# Enable menu-driven completion and case-insensitive matching
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+
+# Group completion matches cleanly
+zstyle ':completion:*' group-name ''
+zstyle ':completion:*:descriptions' format '%F{yellow}-- %d --%f'
+
+# Explicitly set comment color for zsh-syntax-highlighting
+typeset -A ZSH_HIGHLIGHT_STYLES
+ZSH_HIGHLIGHT_STYLES[comment]='fg=244'
+
+# Just drop these two lines at the bottom of your ~/.zshrc
+
+# Accept suggestion with right arrow
+bindkey '^[[C' forward-word
+
+# Enable prompt substitution and colors
+autoload -U colors && colors
+
+# Load Fedora system plugins if installed via RPM
+if [ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]; then
+    source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+fi
+
+if [ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]; then
+    source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+fi
+
+# Example minimal prompt: green user@host in blue directory
+PROMPT="%{$fg[green]%}[%n@%m]%{$reset_color%}:%{$fg[blue]%}%~%{$reset_color%}%# "
