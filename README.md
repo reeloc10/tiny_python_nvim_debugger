@@ -1,14 +1,30 @@
-# Tiny debugger & pylsp/ruff Integration
+# Tiny Debugger, Source Control & LSP Integration
 
-A minimal dependency, ~475-line Python and Neovim debugger using RAM-backed Unix domain sockets (`/dev/shm`) and `sys.settrace`—bypassing the DAP ecosystem—paired with a minimal `pylsp` and `ruff` LSP/linting setup (`pylsp_config.lua`).
+A minimal dependency, ~1,760-line modular Neovim setup combining a custom Python debugger using RAM-backed Unix domain sockets (`/dev/shm`) and `sys.settrace`, a streamlined `pylsp` and `ruff` linting configuration, embedded source control tools (`git_plugin.lua`), high-performance grep searching (`fastgrep.lua`), and syntax parsing via Tree-sitter.
 
 ## Preferred Documentation & Feedback Channel
 Live demos, Q&A, and feedback: [twitch.tv/reeloc10](https://www.twitch.tv/reeloc10)
 
 ## Environment & Dependencies
 Tested on Fedora 45 using system RPM packages from the official repositories:
-* `python3-lsp-server-1.14.0-1.fc45.noarch`
-* `ruff-0.17.4-1.fc45.x86_64`
+- `python3-lsp-server-1.14.0-1.fc45.noarch`
+- `ruff-0.17.4-1.fc45.x86_64`
+
+### Optional Dependencies
+Suggested though not mandatory; some functionality or terminal enhancements may be omitted if missing:
+- `ripgrep-15.2.0-1.fc45.x86_64`
+- `libtree-sitter-python-0.25.0-4.fc45.x86_64`
+- `libtree-sitter-python-devel-0.25.0-4.fc45.x86_64`
+- `zsh-5.9.2-3.fc45.x86_64` *(optional: shell environment)*
+- `zsh-autosuggestions-0.7.1-5.fc45.noarch` *(optional)*
+- `zsh-syntax-highlighting-0.8.0-8.fc45.noarch` *(optional)*
+
+## Core Modules & Architecture
+- **Debugger (`tiny_debugger.lua` / `.py`):** RAM-socket tracing bypassing DAP.
+- **Source Control (`git_plugin.lua`):** Native Git integration.
+- **Search (`fastgrep.lua`):** Fast Ripgrep-backed text navigation.
+- **Syntax (`treesitter.lua`):** Native incremental parsing.
+- **LSP & Linting (`pylsp_config.lua`):** Python analysis and formatting.
 
 ## Testing
 Run in two separate terminals (in any order):
