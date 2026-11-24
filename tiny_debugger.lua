@@ -3,6 +3,9 @@
 
 local M = {}
 
+local common = require("common")
+-- Then use common.get_repo_rel_path(filepath) and common.cloned_folder
+
 local MAX_BREAKPOINTS = 5
 
 local client = nil
@@ -48,6 +51,49 @@ local function refresh_bp_signs(bufnr)
       })
     end
   end
+end
+
+-- Reusable floating window helper
+local function show_floating_prompt(title_text, content_lines, on_confirm)
+  local width = math.min(70, vim.o.columns - 6)
+  local height = math.min(#content_lines + 2, vim.o.lines - 6)
+  local row = math.floor((vim.o.lines - height) / 2)
+  local col = math.floor((vim.o.columns - width) / 2)
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, content_lines)
+
+  local win_opts = {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = row,
+    col = col,
+    style = "minimal",
+    border = "rounded",
+    title = { { " " .. title_text .. " ", "Title" } },
+    title_pos = "center",
+  }
+
+  local win = vim.api.nvim_open_win(buf, true, win_opts)
+  vim.wo[win].winhl = "Normal:NormalFloat,FloatBorder:FloatBorder"
+
+  -- Force Normal mode immediately so pressing q or Enter works without escaping first
+  vim.cmd('stopinsert')
+
+  local function close()
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, true)
+    end
+  end
+
+  vim.keymap.set("n", "<CR>", function()
+    close()
+    if on_confirm then on_confirm() end
+  end, { buffer = buf })
+
+  vim.keymap.set("n", "q", close, { buffer = buf })
+  vim.keymap.set("n", "<Esc>", close, { buffer = buf })
 end
 
 local function ensure_connected(callback)
@@ -208,10 +254,84 @@ local function send_payload(payload_table)
   end)
 end
 
+local function continue_execution()
+  send_payload({
+    command = "continue",
+    breakpoints = breakpoints,
+    verbose = verbose_mode,
+  })
+  local bufnr = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_clear_namespace(bufnr, exec_ns_id, 0, -1)
+  echo_cmd(string.format(":mc -> Running (%d breakpoint(s)) [Verbose: %s]...", #breakpoints, tostring(verbose_mode)), "MoreMsg")
+end
+
 function M.setup()
   vim.api.nvim_create_autocmd("BufEnter", {
     callback = function(args)
       refresh_bp_signs(args.buf)
+    end,
+  })
+
+  -- Warn with floating modal confirmation ONLY when line count changes (lines added/removed)
+  local has_warned_for_buf = {}
+  vim.api.nvim_create_autocmd({ "BufEnter", "TextChanged", "TextChangedI" }, {
+    callback = function(args)
+      local bufnr = args.buf
+      local current_line_count = vim.api.nvim_buf_line_count(bufnr)
+
+      -- Initialize line count cache on enter
+      if vim.b[bufnr].last_line_count == nil then
+        vim.b[bufnr].last_line_count = current_line_count
+        return
+      end
+
+      -- If line count hasn't changed (just typing characters on existing lines), ignore
+      if current_line_count == vim.b[bufnr].last_line_count then
+        return
+      end
+
+      -- Line count changed! Update cache and check if breakpoints are affected
+      vim.b[bufnr].last_line_count = current_line_count
+
+      if #breakpoints == 0 then return end
+      local cur_file = normalize_path(vim.api.nvim_buf_get_name(bufnr))
+
+      local has_bp_in_file = false
+      for _, bp in ipairs(breakpoints) do
+        if normalize_path(bp.file) == cur_file then
+          has_bp_in_file = true
+          break
+        end
+      end
+
+      if has_bp_in_file and not has_warned_for_buf[bufnr] then
+        has_warned_for_buf[bufnr] = true
+        vim.schedule(function()
+          show_floating_prompt(
+            "Breakpoint Line Mismatch Warning",
+            {
+              "Lines were added or removed in this file while breakpoints are active.",
+              "Breakpoint locations may now be inaccurate.",
+              "",
+              "Press <CR> to run :TinyResetBreakpoints",
+              "Press q or <Esc> to dismiss",
+            },
+            function()
+              -- Trigger reset_breakpoints behavior
+              breakpoints = {}
+              refresh_bp_signs(0)
+              if client ~= nil then
+                local ok, closing = pcall(function() return client:is_closing() end)
+                if ok and not closing then
+                  send_payload({ command = "reset_breakpoints", breakpoints = {} })
+                end
+              end
+              echo_cmd(":mr -> All breakpoints reset.")
+              has_warned_for_buf[bufnr] = nil
+            end
+          )
+        end)
+      end
     end,
   })
 
@@ -259,6 +379,7 @@ function M.setup()
   local function reset_breakpoints()
     breakpoints = {}
     refresh_bp_signs(0)
+    has_warned_for_buf = {}
     local is_active = false
     if client ~= nil then
       local ok, closing = pcall(function() return client:is_closing() end)
@@ -302,17 +423,6 @@ function M.setup()
     else
       echo_cmd(":mq -> Termination cancelled.")
     end
-  end
-
-  local function continue_execution()
-    send_payload({
-      command = "continue",
-      breakpoints = breakpoints,
-      verbose = verbose_mode,
-    })
-    local bufnr = vim.api.nvim_get_current_buf()
-    vim.api.nvim_buf_clear_namespace(bufnr, exec_ns_id, 0, -1)
-    echo_cmd(string.format(":mc -> Running (%d breakpoint(s)) [Verbose: %s]...", #breakpoints, tostring(verbose_mode)), "MoreMsg")
   end
 
   local function next_line()
@@ -385,6 +495,47 @@ function M.setup()
   vim.keymap.set("n", "<leader>mv", eval_cword, { desc = "Debugger Eval Cword" })
   vim.keymap.set("n", "<leader>mi", eval_interactive, { desc = "Debugger Interactive Eval" })
   vim.keymap.set("n", "<leader>mV", toggle_verbose, { desc = "Debugger Toggle Verbose Mode" })
+
+  -- Command :TinyLaunch [args...] to launch tiny_debugger.py against current nvim PID
+  vim.api.nvim_create_user_command('TinyLaunch', function(opts)
+    local filepath = vim.api.nvim_buf_get_name(0)
+    if filepath == "" then
+      print("[tiny_debugger] Error: Active buffer has no valid filename.")
+      return
+    end
+
+    local relpath = common.get_repo_rel_path(filepath) or filepath
+    local nvim_pid = vim.fn.getpid()
+
+    local cmd = string.format(
+      "python3 %s/tiny_debugger.py %d %s %s",
+      common.cloned_folder, nvim_pid, relpath, (opts.args and opts.args ~= "" and (" " .. opts.args) or "")
+    )
+
+    -- Explicit confirmation showing the exact command to be executed (defaults to Cancel)
+    vim.api.nvim_echo({
+      { string.format("Execute: %s\nProceed? [y/N] (Default: Cancel): ", cmd), "ErrorMsg" }
+    }, false, {})
+
+    local ok, input = pcall(vim.fn.input, "")
+    if not ok or (input:lower() ~= "y" and input:lower() ~= "yes") then
+      print("\nLaunch cancelled.")
+      return
+    end
+
+    print("\nLaunching tiny_debugger...")
+    vim.cmd('botright 15split | terminal ' .. cmd)
+    vim.cmd('startinsert')
+
+    -- Automatically resume execution and restore focus to the upper code window
+    vim.defer_fn(function()
+      -- Switch focus back from the terminal split to your code buffer window
+      vim.cmd('wincmd p')
+      continue_execution()
+    end, 150)
+
+  end, { nargs = "*" })
+
 end
 
 return M

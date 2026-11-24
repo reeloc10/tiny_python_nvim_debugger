@@ -14,6 +14,9 @@ M.config = {
   base_ref = "HEAD",
 }
 
+local common = require("common")
+-- Then use common.get_repo_rel_path(filepath) and common.cloned_folder
+
 function M.setup(opts)
   -- Merge user configuration overrides with defaults
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
@@ -44,18 +47,9 @@ function M.setup(opts)
     end
   end
 
-  -- Helper to get the repo-relative path safely with a file separator
-  local function get_repo_rel_path(filepath)
-    if not filepath or filepath == "" then return nil end
-    local res = vim.system({ "git", "ls-files", "--full-name", "--", filepath }, { text = true }):wait()
-    if res.code ~= 0 then return nil end
-    local path = vim.trim(res.stdout or "")
-    return path ~= "" and path or nil
-  end
-
   -- Helper to check if a file exists in git HEAD
   local function is_tracked_in_head(filepath)
-    local relpath = get_repo_rel_path(filepath)
+    local relpath = common.get_repo_rel_path(filepath)
     if not relpath then return false end
     local res = vim.system({ "git", "cat-file", "-e", "HEAD:" .. relpath }, { text = true }):wait()
     return res.code == 0
@@ -143,7 +137,7 @@ function M.setup(opts)
     vim.api.nvim_buf_clear_namespace(bufnr, ns_col2, 0, -1)
 
     -- Extract repo-relative path for git execution
-    local relpath = get_repo_rel_path(file)
+    local relpath = common.get_repo_rel_path(file)
     if not relpath then
       -- Untracked or not in repo yet; skip signs cleanly without fatal exit
       return
@@ -346,7 +340,7 @@ function M.setup(opts)
       return
     end
 
-    local relpath = get_repo_rel_path(file)
+    local relpath = common.get_repo_rel_path(file)
     if not relpath then
       print("[tiny_debugger] Error: File is not tracked in git repository.")
       return
@@ -502,7 +496,7 @@ function M.setup(opts)
     end
 
     -- Revert file on disk to HEAD, then force-reload buffer
-    local relpath = get_repo_rel_path(filepath) or filepath
+    local relpath = common.get_repo_rel_path(filepath) or filepath
     vim.fn.system({ "git", "checkout", "HEAD", "--", relpath })
     vim.cmd("edit!")
     print("\nReverted to HEAD and reloaded.")
@@ -514,7 +508,7 @@ function M.setup(opts)
     if filepath == "" then return end
 
     -- 1. Stage the current file safely using repo-relative path
-    local relpath = get_repo_rel_path(filepath) or filepath
+    local relpath = common.get_repo_rel_path(filepath) or filepath
     vim.fn.system({ "git", "add", "--", relpath })
     if vim.v.shell_error ~= 0 then
       vim.api.nvim_echo({ { "Failed to stage file with git add.", "ErrorMsg" } }, false, {})
