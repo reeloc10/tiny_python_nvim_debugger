@@ -53,6 +53,7 @@ Default `<leader>` key is `Space`. Every shortcut maps directly to its correspon
 | **Go to definition** | `gd` (normal) | — |
 | **Manual LSP completion trigger** | `<C-Space>` (insert) | — |
 | **Automatic completion (as-you-type & member trigger)** | `.` / typing (insert) | — |
+| **Interactive parameter completion & stubs** | `<C-j>` (insert) | — |
 | **Show function documentation** | `K` (normal) | — |
 | **Show function signature** | `<C-h>` / `<M-s>` (insert) | — |
 | **Previous diagnostic** | `[d` | `:ReelocLspPrevDiagnostic` |

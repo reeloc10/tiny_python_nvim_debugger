@@ -47,6 +47,68 @@ function M.setup()
       local client = vim.lsp.get_client_by_id(args.data.client_id)
       if not client then return end
 
+      if client.name == 'pylsp' then
+        local pylsp_response_timeout_in_milisecs = 1000
+
+        vim.keymap.set('i', '<C-j>', function()
+          local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
+          -- Use colon syntax (:request_sync) to avoid the deprecation warning
+          local result = client:request_sync('textDocument/signatureHelp', params, pylsp_response_timeout_in_milisecs, args.buf)
+
+          if not result or not result.result or not result.result.signatures then
+            return
+          end
+
+          local sigs = result.result.signatures
+          local active_idx = (result.result.activeSignature or 0) + 1
+          local sig = sigs[active_idx] or sigs[1]
+
+          if not sig or not sig.parameters or #sig.parameters == 0 then
+            return
+          end
+
+          local sig_doc = sig.label or ""
+          local current_line = vim.api.nvim_get_current_line()
+
+          local completion_items = {}
+          for _, param in ipairs(sig.parameters) do
+            local label = param.label
+            if type(label) == 'table' and sig.label then
+              label = sig.label:sub(label[1] + 1, label[2])
+            end
+
+            local p_name = type(label) == 'string' and label:match('^([^:%s]+)') or nil
+            if p_name and p_name ~= 'self' then
+              -- Only offer parameters that haven't already been inserted on this line
+              if not current_line:match(p_name .. '%s*=') then
+                local menu_detail = (type(label) == 'string' and label ~= p_name) and label or ""
+
+                table.insert(completion_items, {
+                  word = p_name .. '=',
+                  menu = menu_detail,
+                  info = sig_doc,
+                  icase = 1,
+                })
+              end
+            end
+          end
+
+          if #completion_items > 0 then
+            local col = vim.api.nvim_win_get_cursor(0)[2]
+            local line = vim.api.nvim_get_current_line()
+            local start_col = col
+            while start_col > 0 and line:sub(start_col, start_col):match('[%w_]') do
+              start_col = start_col - 1
+            end
+
+            vim.fn.complete(start_col + 1, completion_items)
+          end
+        end, {
+          buffer = args.buf,
+          desc = 'Open clean interactive parameter completion menu'
+        })
+      end
+
       local opts = { buffer = args.buf }
 
       -- Enable native LSP completion (triggerCharacters + as-you-type identifier letters)
