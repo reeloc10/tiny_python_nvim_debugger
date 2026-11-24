@@ -107,6 +107,7 @@ Quick reference snippets for running tests, switching shells, and inspecting map
 | **Open terminal running Bash** | `:split \| terminal bash` |
 | **Open terminal running Zsh** | `:split \| terminal zsh` |
 | **Inspect mapping origin and scope** | `:verbose nmap <Space>e` |
+| **View plugin, LSP, and deprecation logs** | `:messages` |
 
 ## License
 Licensed under the [Apache License, Version 2.0](LICENSE).
