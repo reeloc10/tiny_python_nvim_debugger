@@ -2,7 +2,7 @@
 -- Copyright 2026 reeloc10
 
 -- Native 2-column git sign indicator, inline word-level diff tracking,
--- and in-memory read-only vimdiff split toggle using Neovim API and indices.
+-- and in-memory read-only vimdiff vertical split toggle using Neovim API and indices.
 -- Implemented with clean, compact glyph extmarks for maximum compatibility and zero gutter jitter.
 
 local M = {}
@@ -59,6 +59,22 @@ function M.setup(opts)
     if not relpath then return false end
     local res = vim.system({ "git", "cat-file", "-e", "HEAD:" .. relpath }, { text = true }):wait()
     return res.code == 0
+  end
+
+  -- Helper to fetch recent git commits with hash and subject descriptions
+  local function fetch_git_commits(limit)
+    limit = limit or 40
+    local res = vim.system({
+      "git", "log", "--all", "--format=%h %s", "-n", tostring(limit)
+    }, { text = true }):wait()
+
+    local items = {}
+    if res.code == 0 and res.stdout then
+      for line in res.stdout:gmatch("[^\r\n]+") do
+        table.insert(items, line)
+      end
+    end
+    return items
   end
 
   -- Disable plugin safely and notify user on unrecoverable environment errors
@@ -290,7 +306,7 @@ function M.setup(opts)
     end
   end, {})
 
-  -- Core inner function to handle vimdiff split view with explicit target ref and force state
+  -- Core inner function to handle vertical split vimdiff view with explicit target ref and force state
   local function diff_command_inner(target_ref, force_state)
     target_ref = (target_ref and target_ref ~= "") and target_ref or M.config.base_ref
 
@@ -393,7 +409,33 @@ function M.setup(opts)
   -- Expose inner function on module table for programmatic calls
   M.diff = diff_command_inner
 
-  -- User command wrapper for CLI / keymap usage
+  -- Interactive picker using vim.ui.select to choose a base commit hash/ref with descriptions
+  local function select_base_and_diff()
+    local items = fetch_git_commits(40)
+    if #items == 0 then
+      print("[tiny_debugger] No git commits found.")
+      return
+    end
+
+    vim.ui.select(items, {
+      prompt = "Select Base Commit for Diff:",
+      format_item = function(item)
+        return item
+      end,
+    }, function(choice)
+      if not choice then return end
+      local hash = choice:match("^(%S+)")
+      if hash then
+        print(string.format("[tiny_debugger] Selected base hash: %s", hash))
+        diff_command_inner(hash, true)
+      end
+    end)
+  end
+
+  -- Expose select helper on module table
+  M.select_diff = select_base_and_diff
+
+  -- User command wrapper for CLI / keymap usage with completion including abbreviations
   vim.api.nvim_create_user_command(M.config.diff_command, function(opts)
     local args = {}
     if opts.args and opts.args ~= "" then
@@ -417,7 +459,27 @@ function M.setup(opts)
     end
 
     diff_command_inner(target_ref, force_state)
-  end, { nargs = "*" })
+  end, {
+    nargs = "*",
+    complete = function(lead)
+      local candidates = fetch_git_commits(40)
+      -- Fetch local branches and tags
+      local ref_res = vim.system({ "git", "for-each-ref", "--format=%(refname:short)", "refs/heads/", "refs/tags/" }, { text = true }):wait()
+      if ref_res.code == 0 and ref_res.stdout then
+        for ref in ref_res.stdout:gmatch("[^\r\n]+") do
+          table.insert(candidates, ref)
+        end
+      end
+
+      local matches = {}
+      for _, c in ipairs(candidates) do
+        if c:find(lead, 1, true) == 1 then
+          table.insert(matches, c)
+        end
+      end
+      return matches
+    end
+  })
 
   -- User command to manually force a debug inspection trace dump (:GitSignsInspect)
   vim.api.nvim_create_user_command("GitSignsInspect", function()
@@ -467,7 +529,7 @@ function M.setup(opts)
       return
     end
 
-    -- 2. Ensure GitSignsDiff is forced ON if tracked in HEAD; otherwise notify
+    -- 2. Ensure GitSignsDiff is forced ON in vertical split if tracked in HEAD; otherwise notify
     if is_tracked_in_head(filepath) then
       diff_command_inner(nil, true)
     else
