@@ -106,6 +106,13 @@ require("pylsp_config").setup({
 
 require("autopairing").setup()
 require("git_plugin").setup({ enabled = false }) -- starts disabled
+
+require('git_status')
+
+-- --- Your existing configuration ---
+-- (Ensure any existing statusline config is overwritten)
+-- Use a single assignment instead of concatenation
+
 require("tiny_debugger").setup()
 require('fastgrep').setup()
 
