@@ -43,6 +43,23 @@ function M.setup(opts)
     end
   end
 
+  -- Helper to get the repo-relative path safely with a file separator
+  local function get_repo_rel_path(filepath)
+    if not filepath or filepath == "" then return nil end
+    local res = vim.system({ "git", "ls-files", "--full-name", "--", filepath }, { text = true }):wait()
+    if res.code ~= 0 then return nil end
+    local path = vim.trim(res.stdout or "")
+    return path ~= "" and path or nil
+  end
+
+  -- Helper to check if a file exists in git HEAD
+  local function is_tracked_in_head(filepath)
+    local relpath = get_repo_rel_path(filepath)
+    if not relpath then return false end
+    local res = vim.system({ "git", "cat-file", "-e", "HEAD:" .. relpath }, { text = true }):wait()
+    return res.code == 0
+  end
+
   -- Disable plugin safely and notify user on unrecoverable environment errors
   local function fatal_error_exit(err_msg, target_bufnr)
     M.config.enabled = false
@@ -108,23 +125,20 @@ function M.setup(opts)
     vim.api.nvim_buf_clear_namespace(bufnr, ns_col1, 0, -1)
     vim.api.nvim_buf_clear_namespace(bufnr, ns_col2, 0, -1)
 
-    -- Extract relative filename for git execution
-    local filename = vim.fn.fnamemodify(file, ":t")
-    if filename == "" then
-      fatal_error_exit("Empty filename resolved — Disabling plugin.", bufnr)
+    -- Extract repo-relative path for git execution
+    local relpath = get_repo_rel_path(file)
+    if not relpath then
+      -- Untracked or not in repo yet; skip signs cleanly without fatal exit
       return
     end
 
     -- Execute git show to fetch HEAD revision content asynchronously
-    local cmd_args = { "git", "show", "HEAD:./" .. filename, "--" }
+    local cmd_args = { "git", "show", "HEAD:" .. relpath, "--" }
     log_debug("Executing direct system call (argv array, no shell): %s", table.concat(cmd_args, " "))
 
     vim.system(cmd_args, { text = true }, function(show_obj)
       if type(show_obj) ~= "table" or show_obj.code ~= 0 then
-        local raw_err = (show_obj and show_obj.stderr or ""):gsub("%s+$", "")
-        local code_str = tostring(show_obj and show_obj.code or -1)
-        local err_msg = string.format("Git command failed (code %s): %s — Disabling plugin.", code_str, raw_err)
-        fatal_error_exit(err_msg, bufnr)
+        -- Skip sign updates if file does not exist in HEAD yet (new untracked files)
         return
       end
 
@@ -151,7 +165,7 @@ function M.setup(opts)
 
         if not hunks then return end
 
-        log_append("================ NEW INDICES EVALUATION for %s ================", filename)
+        log_append("================ NEW INDICES EVALUATION for %s ================", relpath)
         log_append("Total hunks detected: %d", #hunks)
 
         local old_lines = vim.split(old_text, "\n", { plain = true })
@@ -303,8 +317,13 @@ function M.setup(opts)
       return
     end
 
-    local filename = vim.fn.fnamemodify(file, ":t")
-    local cmd_output = vim.system({ "git", "show", "HEAD:./" .. filename }, { text = true }):wait()
+    local relpath = get_repo_rel_path(file)
+    if not relpath then
+      print("[tiny_debugger] Error: File is not tracked in git repository.")
+      return
+    end
+
+    local cmd_output = vim.system({ "git", "show", "HEAD:" .. relpath }, { text = true }):wait()
     if cmd_output.code ~= 0 then
       local err_str = "[tiny_debugger] Failed to fetch HEAD revision for vimdiff: " .. (cmd_output.stderr or "")
       print(err_str)
@@ -313,7 +332,7 @@ function M.setup(opts)
     end
 
     -- Clean up any leftover scratch buffer with the same name before creating a fresh one
-    local target_buf_name = "GitDiffHEAD://" .. filename
+    local target_buf_name = "GitDiffHEAD://" .. relpath
     for _, b in ipairs(vim.api.nvim_list_bufs()) do
       if vim.api.nvim_buf_is_valid(b) and vim.api.nvim_buf_get_name(b):match("GitDiffHEAD://") then
         vim.api.nvim_buf_delete(b, { force = true })
@@ -370,7 +389,7 @@ function M.setup(opts)
     callback = update_git_signs,
   })
 
-  -- Command :GitResetFile to revert current file to HEAD and reload
+  -- Command :GitResetFile to revert current file to HEAD with safety prompt
   vim.api.nvim_create_user_command('GitResetFile', function()
     local filepath = vim.api.nvim_buf_get_name(0)
     if filepath == "" then return end
@@ -395,9 +414,35 @@ function M.setup(opts)
     end
 
     -- Revert file on disk to HEAD, then force-reload buffer
-    vim.fn.system({ "git", "checkout", "HEAD", "--", filepath })
+    local relpath = get_repo_rel_path(filepath) or filepath
+    vim.fn.system({ "git", "checkout", "HEAD", "--", relpath })
     vim.cmd("edit!")
     print("\nReverted to HEAD and reloaded.")
+  end, {})
+
+  -- Command :GitCommitVerbose with safe tracking check and split commit view
+  vim.api.nvim_create_user_command('GitCommitVerbose', function()
+    local filepath = vim.api.nvim_buf_get_name(0)
+    if filepath == "" then return end
+
+    -- 1. Stage the current file safely using repo-relative path
+    local relpath = get_repo_rel_path(filepath) or filepath
+    vim.fn.system({ "git", "add", "--", relpath })
+    if vim.v.shell_error ~= 0 then
+      vim.api.nvim_echo({ { "Failed to stage file with git add.", "ErrorMsg" } }, false, {})
+      return
+    end
+
+    -- 2. Open GitSignsDiff only if tracked in HEAD; otherwise notify or handle gracefully
+    if is_tracked_in_head(filepath) then
+      vim.cmd(M.config.diff_command)
+    else
+      print("New untracked file staged for commit.")
+    end
+
+    -- 3. Open terminal split below for git commit -v
+    vim.cmd('botright 15split | terminal git commit -v')
+    vim.cmd('startinsert')
   end, {})
 
 end
