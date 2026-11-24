@@ -64,6 +64,15 @@ Default `<leader>` key is `Space`. Every shortcut maps directly to its correspon
 | **Ruff auto-fix & format** | `<leader>f` | `:ReelocLspRuffFix` |
 | **Check attached LSP clients** | — | `:ReelocLspStatus` |
 
+### Autopairing
+Automatically closes matching brackets and quotes (`()`, `[]`, `{}`, `""`, `''`) in insert mode using native keymaps without external plugins.
+
+| Action | Trigger | Behavior |
+| :--- | :--- | :--- |
+| **Auto-close pair** | `(`, `[`, `{`, `"`, `'` (insert) | Inserts matching closing character and centers cursor (skips quotes after word characters like `don't`) |
+| **Step over closing delimiter** | `)`, `]`, `}`, `"`, `'` (insert) | Moves cursor past existing closing character instead of duplicating it |
+| **Delete empty pair** | `<BS>` (insert) | Deletes both opening and closing characters when cursor is inside an empty pair |
+
 ### Terminal Split & Navigation
 | Action | Leader Shortcut / Motion | Ex Command |
 | :--- | :--- | :--- |

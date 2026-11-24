@@ -74,6 +74,7 @@ end, { desc = 'Open bottom horizontal terminal split' })
 -- Load modular configurations
 require("treesitter").setup({ config_dir = config_dir })
 require("pylsp_config").setup()
+require("autopairing").setup()
 require("git_plugin").setup({ enabled = false }) -- starts disabled
 require("tiny_debugger").setup()
 
