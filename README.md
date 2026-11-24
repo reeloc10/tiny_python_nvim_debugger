@@ -99,12 +99,12 @@ Quick reference snippets for running tests, switching shells, and inspecting map
 
 | Task | Command |
 | :--- | :--- |
-| **Open file in horizontal split** | `:split | find filename.py` |
-| **Open file in vertical split** | `:vsplit | find filename.py` |
+| **Open file in horizontal split** | `:split \| find filename.py` |
+| **Open file in vertical split** | `:vsplit \| find filename.py` |
 | **Switch active shell to Bash** | `:lua vim.o.shell = '/bin/bash'` |
 | **Switch active shell to Zsh** | `:lua vim.o.shell = '/bin/zsh'` |
-| **Open terminal running Bash** | `:split | terminal bash` |
-| **Open terminal running Zsh** | `:split | terminal zsh` |
+| **Open terminal running Bash** | `:split \| terminal bash` |
+| **Open terminal running Zsh** | `:split \| terminal zsh` |
 | **Inspect mapping origin and scope** | `:verbose nmap <Space>e` |
 
 ## License
