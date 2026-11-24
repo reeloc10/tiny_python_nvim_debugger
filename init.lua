@@ -71,6 +71,27 @@ vim.keymap.set('n', '<leader>ft', function()
   vim.cmd('startinsert')
 end, { desc = 'Open bottom horizontal terminal split' })
 
+-- Ensure Python indentation uses standard rules, disables C-style tracking,
+-- and clears the expression-based indent script that causes runaway indentation.
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "python",
+  callback = function(args)
+    vim.bo.shiftwidth = 4
+    vim.bo.tabstop = 4
+    vim.bo.expandtab = true
+    vim.bo.cindent = false
+    -- Enable smartindent to handle block nesting after colons (:)
+    -- while keeping indentexpr disabled to prevent runaway continuation bugs.
+    vim.bo.smartindent = true
+    vim.bo.autoindent = true
+    vim.bo[args.buf].indentexpr = ""
+  end,
+})
+
+-- Note: Registering multiple FileType autocmds across different modules
+-- is completely fine in Neovim. It runs them sequentially and helps
+-- maintain strict separation of concerns.
+
 -- Load modular configurations
 require("treesitter").setup({ config_dir = config_dir })
 
