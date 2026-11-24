@@ -11,6 +11,7 @@ local M = {}
 M.config = {
   enabled = true,
   diff_command = "GitSignsDiff",
+  base_ref = "HEAD",
 }
 
 function M.setup(opts)
@@ -106,8 +107,8 @@ function M.setup(opts)
 
     local file = vim.api.nvim_buf_get_name(bufnr)
 
-    -- Skip sign updates on our in-memory GitDiffHEAD scratch buffer
-    if type(file) == "string" and file:match("GitDiffHEAD://") then return end
+    -- Skip sign updates on our in-memory GitDiffRef scratch buffer
+    if type(file) == "string" and file:match("GitDiffRef://") then return end
 
     if type(file) ~= "string" or file == "" then
       fatal_error_exit("Bad filename — Disabling plugin.", bufnr)
@@ -248,11 +249,6 @@ function M.setup(opts)
           end
         end
 
-        log_append("FINAL LINE SIGNS MAPPING:")
-        for lnum, s in pairs(line_signs) do
-          log_append("  line %d (1-idx: %d): col1='%s', col2='%s'", lnum, lnum + 1, s.col1, s.col2)
-        end
-
         -- Render gutter signs into respective namespaces without gutter jitter
         for lnum = 0, line_count - 1 do
           local s = line_signs[lnum]
@@ -294,10 +290,28 @@ function M.setup(opts)
     end
   end, {})
 
-  -- User command to toggle read-only in-memory vimdiff split view against HEAD
-  vim.api.nvim_create_user_command(M.config.diff_command, function()
-    -- If diff window is already open and valid, tear it down cleanly
+  -- Core inner function to handle vimdiff split view with explicit target ref and force state
+  local function diff_command_inner(target_ref, force_state)
+    target_ref = (target_ref and target_ref ~= "") and target_ref or M.config.base_ref
+
+    -- If diff window is already open and valid
     if diff_win and vim.api.nvim_win_is_valid(diff_win) then
+      if force_state == true then
+        return
+      end
+      if force_state == false or (force_state == nil and target_ref == M.config.base_ref) then
+        vim.cmd("diffoff!")
+        vim.api.nvim_win_close(diff_win, true)
+        if diff_buf and vim.api.nvim_buf_is_valid(diff_buf) then
+          vim.api.nvim_buf_delete(diff_buf, { force = true })
+        end
+        diff_win = nil
+        diff_buf = nil
+        print("[tiny_debugger] Closed vimdiff split view")
+        log_append("Closed vimdiff split view")
+        return
+      end
+      -- Close old diff window before opening a different ref
       vim.cmd("diffoff!")
       vim.api.nvim_win_close(diff_win, true)
       if diff_buf and vim.api.nvim_buf_is_valid(diff_buf) then
@@ -305,8 +319,7 @@ function M.setup(opts)
       end
       diff_win = nil
       diff_buf = nil
-      print("[tiny_debugger] Closed vimdiff split view")
-      log_append("Closed vimdiff split view")
+    elseif force_state == false then
       return
     end
 
@@ -323,18 +336,18 @@ function M.setup(opts)
       return
     end
 
-    local cmd_output = vim.system({ "git", "show", "HEAD:" .. relpath }, { text = true }):wait()
+    local cmd_output = vim.system({ "git", "show", target_ref .. ":" .. relpath }, { text = true }):wait()
     if cmd_output.code ~= 0 then
-      local err_str = "[tiny_debugger] Failed to fetch HEAD revision for vimdiff: " .. (cmd_output.stderr or "")
+      local err_str = string.format("[tiny_debugger] Failed to fetch %s revision for vimdiff: %s", target_ref, (cmd_output.stderr or ""))
       print(err_str)
       log_append("%s", err_str)
       return
     end
 
     -- Clean up any leftover scratch buffer with the same name before creating a fresh one
-    local target_buf_name = "GitDiffHEAD://" .. relpath
+    local target_buf_name = string.format("GitDiffRef://%s/%s", target_ref, relpath)
     for _, b in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.api.nvim_buf_is_valid(b) and vim.api.nvim_buf_get_name(b):match("GitDiffHEAD://") then
+      if vim.api.nvim_buf_is_valid(b) and vim.api.nvim_buf_get_name(b):match("GitDiffRef://") then
         vim.api.nvim_buf_delete(b, { force = true })
       end
     end
@@ -366,7 +379,6 @@ function M.setup(opts)
     vim.cmd("vsplit")
     diff_win = vim.api.nvim_get_current_win()
     vim.api.nvim_win_set_buf(diff_win, diff_buf)
-
     -- Enable native diff mode on the base memory buffer
     vim.cmd("diffthis")
 
@@ -374,9 +386,38 @@ function M.setup(opts)
     vim.cmd("wincmd p")
     vim.cmd("diffthis")
 
-    print("[tiny_debugger] Switched to vimdiff view (In-Memory HEAD base)")
-    log_append("Switched to vimdiff view (In-Memory HEAD base)")
-  end, {})
+    print(string.format("[tiny_debugger] Switched to vimdiff view (Base: %s)", target_ref))
+    log_append("Switched to vimdiff view (Base: %s)", target_ref)
+  end
+
+  -- Expose inner function on module table for programmatic calls
+  M.diff = diff_command_inner
+
+  -- User command wrapper for CLI / keymap usage
+  vim.api.nvim_create_user_command(M.config.diff_command, function(opts)
+    local args = {}
+    if opts.args and opts.args ~= "" then
+      for word in opts.args:gmatch("%S+") do
+        table.insert(args, word)
+      end
+    end
+
+    local target_ref = args[1]
+    local force_state = nil
+    if args[2] == "true" then
+      force_state = true
+    elseif args[2] == "false" then
+      force_state = false
+    elseif args[1] == "true" then
+      target_ref = nil
+      force_state = true
+    elseif args[1] == "false" then
+      target_ref = nil
+      force_state = false
+    end
+
+    diff_command_inner(target_ref, force_state)
+  end, { nargs = "*" })
 
   -- User command to manually force a debug inspection trace dump (:GitSignsInspect)
   vim.api.nvim_create_user_command("GitSignsInspect", function()
@@ -401,14 +442,7 @@ function M.setup(opts)
 
     -- Get user input
     local ok, input = pcall(vim.fn.input, "")
-    if not ok then
-      print("\nReset cancelled.")
-      return
-    end
-
-    -- Default to keeping/cancelling if input is empty or anything other than explicit 'y'/'yes'
-    local confirm = input:lower()
-    if confirm ~= "y" and confirm ~= "yes" then
+    if not ok or input:lower() ~= "y" and input:lower() ~= "yes" then
       print("\nReset cancelled. Keeping changes.")
       return
     end
@@ -433,9 +467,9 @@ function M.setup(opts)
       return
     end
 
-    -- 2. Open GitSignsDiff only if tracked in HEAD; otherwise notify or handle gracefully
+    -- 2. Ensure GitSignsDiff is forced ON if tracked in HEAD; otherwise notify
     if is_tracked_in_head(filepath) then
-      vim.cmd(M.config.diff_command)
+      diff_command_inner(nil, true)
     else
       print("New untracked file staged for commit.")
     end
