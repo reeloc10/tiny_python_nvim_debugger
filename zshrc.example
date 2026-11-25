@@ -85,3 +85,7 @@ nvim() {
   done
   command nvim "$@"
 }
+
+# Bind Home and End keys
+bindkey "^[[H" beginning-of-line
+bindkey "^[[F" end-of-line
