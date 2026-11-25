@@ -17,6 +17,16 @@ local is_connecting = false
 local breakpoints = {}
 local verbose_mode = false
 
+local function has_unsaved_changes()
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    -- Check if buffer is loaded and marked as modified
+    if vim.api.nvim_buf_is_loaded(bufnr) and vim.bo[bufnr].modified then
+      return true
+    end
+  end
+  return false
+end
+
 local function get_socket_path()
   return string.format("/dev/shm/tiny_debugger_%d.sock", vim.fn.getpid())
 end
@@ -498,6 +508,10 @@ function M.setup()
 
   -- Command :TinyLaunch [args...] to launch tiny_debugger.py against current nvim PID
   vim.api.nvim_create_user_command('TinyLaunch', function(opts)
+    if has_unsaved_changes() then
+      vim.notify("Cannot launch: You have unsaved changes!", vim.log.levels.WARN, { title = "TinyLaunch" })
+      return
+    end
     local filepath = vim.api.nvim_buf_get_name(0)
     if filepath == "" then
       print("[tiny_debugger] Error: Active buffer has no valid filename.")
