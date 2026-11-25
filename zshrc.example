@@ -89,3 +89,6 @@ nvim() {
 # Bind Home and End keys
 bindkey "^[[H" beginning-of-line
 bindkey "^[[F" end-of-line
+
+# Bind the Delete key to delete the character under the cursor
+bindkey "\e[3~" delete-char
