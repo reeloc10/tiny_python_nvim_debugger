@@ -34,8 +34,6 @@ zstyle ':completion:*:descriptions' format '%F{yellow}-- %d --%f'
 typeset -A ZSH_HIGHLIGHT_STYLES
 ZSH_HIGHLIGHT_STYLES[comment]='fg=244'
 
-# Just drop these two lines at the bottom of your ~/.zshrc
-
 # Accept suggestion with right arrow
 bindkey '^[[C' forward-word
 
