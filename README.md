@@ -134,6 +134,7 @@ Quick reference snippets for running tests, switching shells, and inspecting map
 | **Open terminal running Zsh** | `:split \| terminal zsh` |
 | **Inspect mapping origin and scope** | `:verbose nmap <Space>e` |
 | **View plugin, LSP, and deprecation logs** | `:messages` |
+| **List active and hidden buffers (and terminal jobs)** | `:buffers` |
 
 ### Built-in File Explorer (`netrw`)
 Minimal dependency file browsing and management using Neovim's native `netrw` explorer.
