@@ -135,5 +135,20 @@ Quick reference snippets for running tests, switching shells, and inspecting map
 | **Inspect mapping origin and scope** | `:verbose nmap <Space>e` |
 | **View plugin, LSP, and deprecation logs** | `:messages` |
 
+### Built-in File Explorer (`netrw`)
+Minimal dependency file browsing and management using Neovim's native `netrw` explorer.
+
+| Task | Command |
+| :--- | :--- |
+| **Open file explorer in current window** | `:Explore` |
+| **Open file explorer in vertical split** | `:Vexplore` |
+| **Open file explorer in horizontal split** | `:Sexplore` |
+| **Navigate up one directory (or open explorer)** | `-` |
+| **Create a new file / directory** | `%` / `d` |
+| **Rename / delete entry under cursor** | `R` / `D` |
+| **Cycle view styles (thin, long, wide, tree)** | `i` |
+| **Cycle sort order (name, time, size, ext)** | `s` |
+| **Toggle hidden dotfiles / top help banner** | `gh` / `I` |
+
 ## License
 Licensed under the [Apache License, Version 2.0](LICENSE).
