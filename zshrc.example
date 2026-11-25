@@ -34,6 +34,11 @@ zstyle ':completion:*:descriptions' format '%F{yellow}-- %d --%f'
 typeset -A ZSH_HIGHLIGHT_STYLES
 ZSH_HIGHLIGHT_STYLES[comment]='fg=244'
 
+# Fedora/Vi-mode default: "^R" redisplay
+# "^R" and "^r" are identical ASCII control characters (0x12)
+# zsh incremental search is smart-case (case-insensitive unless uppercase is typed)
+bindkey '^R' history-incremental-search-backward
+
 # Accept suggestion with right arrow
 bindkey '^[[C' forward-word
 
