@@ -3,7 +3,7 @@
 
 from enum import Enum, auto
 from dataclasses import dataclass
-from typing import List, Callable
+from collections.abc import Callable
 import time
 import sys
 
@@ -36,13 +36,13 @@ class TelemetryEngine(StreamComponent):
     """Derived telemetry processor utilizing functional lambdas and higher-order filtering."""
     def __init__(self) -> None:
         super().__init__("TelemetryEngine")
-        self._packets: List[TelemetryPacket] = []
+        self._packets: list[TelemetryPacket] = []
 
     def ingest(self, packet: TelemetryPacket) -> None:
         self._packets.append(packet)
         self.emit(LogLevel.METRIC, f"Recorded {packet.metric_type} = {packet.value}{packet.unit} from {packet.source}")
 
-    def filter_high_temps(self, threshold: float) -> List[TelemetryPacket]:
+    def filter_high_temps(self, threshold: float) -> list[TelemetryPacket]:
         # Functional lambda filtering for high-value metrics
         is_hot: Callable[[TelemetryPacket], bool] = lambda p: p.metric_type == "Temp" and p.value > threshold
         return list(filter(is_hot, self._packets))
