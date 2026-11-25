@@ -3,8 +3,16 @@
 
 local M = {}
 
+-- Constant for the system-wide Tree-sitter Python parser shared library
+local SYSTEM_PYTHON_PARSER = "/usr/lib64/libtree-sitter-python.so"
+
 local function find_enclosing_node(target_type)
   local node = vim.treesitter.get_node()
+
+  if not node then
+    print("[DEBUG] get_node returned nil, cursor:", vim.inspect(vim.api.nvim_win_get_cursor(0)))
+  end
+
   while node do
     if node:type() == target_type then
       return node
@@ -88,8 +96,11 @@ function M.setup(opts)
   vim.opt.runtimepath:append("/usr/share/tree-sitter")
   vim.opt.runtimepath:append(config_dir .. "/lib64")
 
-  -- Explicitly register the system tree-sitter Python parser shared library
-  vim.treesitter.language.register("python", "python")
+  -- Register the Python parser using the system-wide path constant
+  local success, err = pcall(vim.treesitter.language.add, "python", { path = SYSTEM_PYTHON_PARSER })
+  if not success then
+    vim.notify("Failed to load system Python parser from " .. SYSTEM_PYTHON_PARSER .. ": " .. tostring(err), vim.log.levels.WARN)
+  end
 
   vim.api.nvim_create_autocmd("FileType", {
     pattern = { "python" },
