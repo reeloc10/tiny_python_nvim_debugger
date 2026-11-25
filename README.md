@@ -130,6 +130,8 @@ Quick reference snippets for running tests, switching shells, and inspecting map
 | :--- | :--- |
 | **Open file in horizontal split** | `:split \| find filename.py` |
 | **Open file in vertical split** | `:vsplit \| find filename.py` |
+| **Toggle file explorer (working directory)** | `:ExplorerToggle` |
+| **Toggle file explorer (active buffer directory)** | `:ExplorerToggleBuffer` |
 | **Switch active shell to Bash** | `:lua vim.o.shell = '/bin/bash'` |
 | **Switch active shell to Zsh** | `:lua vim.o.shell = '/bin/zsh'` |
 | **Open terminal running Bash** | `:split \| terminal bash` |
@@ -137,6 +139,7 @@ Quick reference snippets for running tests, switching shells, and inspecting map
 | **Inspect mapping origin and scope** | `:verbose nmap <Space>e` |
 | **View plugin, LSP, and deprecation logs** | `:messages` |
 | **List active and hidden buffers (and terminal jobs)** | `:buffers` |
+| **Switch between open buffers** | `:buffer <number>` (or `:bnext` / `:bprevious`) |
 
 ### Built-in File Explorer (`netrw`)
 Minimal dependency file browsing and management using Neovim's native `netrw` explorer.
