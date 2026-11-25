@@ -181,7 +181,7 @@ function M.setup()
     end,
   })
 
-  -- vim.lsp.set_log_level("debug")
+  -- vim.lsp.log.set_level("debug")
   -- log file: ~/.local/state/nvim/lsp.log
   -- 5. Attach pylsp and ruff natively to Python buffers
   vim.api.nvim_create_autocmd('FileType', {
