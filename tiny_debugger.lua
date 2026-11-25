@@ -18,9 +18,6 @@ local is_connecting = false
 local breakpoints = {}
 local verbose_mode = false
 
-local last_stopped_data = { locals = {}, globals = {} }
-local expanded_paths = {}
-
 local function has_unsaved_changes()
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     -- Check if buffer is loaded and marked as modified
@@ -187,9 +184,8 @@ local function ensure_connected(callback)
                     line_hl_group = "Visual",
                   })
 
-                  -- Update and cache variable explorer sidebar state
-                  last_stopped_data = { locals = data.locals, globals = data.globals }
-                  ui.update(last_stopped_data, expanded_paths)
+                  -- Update variable explorer sidebar state cleanly via UI module
+                  ui.update({ locals = data.locals, globals = data.globals })
 
                   echo_cmd(string.format("[Debugger] Paused at line %d (Hit count: %d)", data.line, data.hits or 1), "MoreMsg")
                 end)
@@ -493,10 +489,7 @@ function M.setup()
   end
 
   local function toggle_variables_sidebar()
-    ui.toggle(expanded_paths)
-    if ui.is_open and ui.is_open() then
-      ui.update(last_stopped_data, expanded_paths)
-    end
+    ui.toggle()
   end
 
   -- --- Register Uppercase User Commands ---

@@ -9,7 +9,7 @@ local locals_buf = nil
 local globals_win = nil
 local globals_buf = nil
 
-local active_expanded_paths = nil
+local active_expanded_paths = {}
 local current_data = { locals = {}, globals = {} }
 
 function M.is_open()
@@ -46,7 +46,7 @@ local function build_tree_lines(data_table, prefix, indent, lines_out, path_map,
     local spacing = string.rep("  ", indent)
 
     if is_table then
-      local is_expanded = active_expanded_paths and active_expanded_paths[path] == true
+      local is_expanded = active_expanded_paths[path] == true
       local icon = is_expanded and "▾ " or "▸ "
       local line_str = string.format("%s%s%s: { ... }", spacing, icon, tostring(k))
 
@@ -66,9 +66,8 @@ local function build_tree_lines(data_table, prefix, indent, lines_out, path_map,
   end
 end
 
-function M.update(data, expanded_ref)
+function M.update(data)
   if data then current_data = data end
-  if expanded_ref then active_expanded_paths = expanded_ref end
   if not M.is_open() then return end
 
   -- Locals Buffer
@@ -106,25 +105,22 @@ local function setup_buffer_keymaps(buf)
     local row = vim.api.nvim_win_get_cursor(0)[1]
     local pmap = vim.b[bufnr].path_map
 
-    if pmap and pmap[row] and pmap[row].table and active_expanded_paths then
+    if pmap and pmap[row] and pmap[row].table then
       local path = pmap[row].path
       active_expanded_paths[path] = not active_expanded_paths[path]
-      M.update(current_data, active_expanded_paths) -- <--- Pass active_expanded_paths here!
+      M.update(current_data)
     end
   end, { buffer = buf, silent = true })
 end
 
-function M.toggle(expanded_ref)
-  if expanded_ref then active_expanded_paths = expanded_ref end
-
+function M.toggle()
   if M.is_open() then
     M.close()
     print("[Debugger UI] Variable sidebar closed.")
   else
-    -- Remember current window to return focus later
     local orig_win = vim.api.nvim_get_current_win()
 
-    -- 1. Create left vertical split for Locals (width 35)
+    -- 1. Create left vertical split for Locals (width 35, mouse resizable, clean bar)
     vim.cmd("topleft 35vsplit")
     locals_buf = vim.api.nvim_create_buf(false, true)
     locals_win = vim.api.nvim_get_current_win()
@@ -134,9 +130,12 @@ function M.toggle(expanded_ref)
     vim.bo[locals_buf].swapfile = false
     vim.bo[locals_buf].modifiable = false
     vim.wo[locals_win].winbar = " Locals (<CR> toggle) "
+    vim.wo[locals_win].winfixwidth = false
+    vim.wo[locals_win].winfixheight = false
+    vim.wo[locals_win].statusline = " "
     setup_buffer_keymaps(locals_buf)
 
-    -- 2. Split horizontally *inside* the locals window for Globals (lower half)
+    -- 2. Split horizontally inside the locals window for Globals (lower half, clean bar)
     vim.api.nvim_set_current_win(locals_win)
     vim.cmd("belowright split")
     globals_buf = vim.api.nvim_create_buf(false, true)
@@ -147,6 +146,9 @@ function M.toggle(expanded_ref)
     vim.bo[globals_buf].swapfile = false
     vim.bo[globals_buf].modifiable = false
     vim.wo[globals_win].winbar = " Globals (<CR> toggle) "
+    vim.wo[globals_win].winfixwidth = false
+    vim.wo[globals_win].winfixheight = false
+    vim.wo[globals_win].statusline = " "
     setup_buffer_keymaps(globals_buf)
 
     -- Restore focus back to original code window
@@ -156,7 +158,7 @@ function M.toggle(expanded_ref)
       vim.cmd("wincmd p")
     end
 
-    M.update(current_data, active_expanded_paths)
+    M.update(current_data)
     print("[Debugger UI] Variable sidebar opened.")
   end
 end
