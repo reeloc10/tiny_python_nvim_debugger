@@ -16,11 +16,12 @@ function M.setup()
   vim.opt.wildignore:append({ '*/.git/*', '*/__pycache__/*', '*.pyc' })
 
   -- Helper to execute grep silently and open quickfix
-  local function run_grep(query)
+  local function run_grep(query, target)
     if not query or query == '' then
       return
     end
-    vim.cmd('silent grep! ' .. vim.fn.fnameescape(query))
+    local scope = target and (' ' .. target) or ''
+    vim.cmd('silent grep! ' .. vim.fn.fnameescape(query) .. scope)
     vim.cmd('copen')
   end
 
@@ -35,6 +36,21 @@ function M.setup()
       end,
       desc = 'Search workspace text with ripgrep into quickfix',
       cmd = 'ReelocFastGrep',
+      nargs = '?',
+    },
+    {
+      mode = 'n',
+      lhs = '<leader>fb',
+      rhs = function(opts)
+        if vim.fn.expand('%') == '' then
+          vim.notify('Buffer has no file on disk', vim.log.levels.WARN)
+          return
+        end
+        local query = (opts and opts.args ~= '') and opts.args or vim.fn.input('rg (buffer) > ')
+        run_grep(query, '%')
+      end,
+      desc = 'Search active buffer text with ripgrep into quickfix',
+      cmd = 'ReelocFastGrepBuffer',
       nargs = '?',
     },
     {
