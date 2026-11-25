@@ -131,6 +131,7 @@ require("autopairing").setup()
 require("git_plugin").setup({ enabled = false }) -- starts disabled
 
 require('git_status')
+require('git_blame').setup()
 
 -- --- Your existing configuration ---
 -- (Ensure any existing statusline config is overwritten)
