@@ -9,6 +9,7 @@ import runpy
 import socket
 import sys
 import threading
+import types
 
 # ANSI Color Constants
 RESET = "\033[0m"
@@ -40,6 +41,48 @@ def cleanup_socket():
 def print_error(msg):
     print(f"{RED}{msg}{RESET}", file=sys.stderr)
 
+def serialize_value(val, depth=0, visited=None):
+    """Safely convert dicts, lists, tuples, and objects into native JSON structures, protecting against circular references."""
+    if visited is None:
+        visited = set()
+
+    if depth > 6:
+        return repr(val)
+
+    # Filter out modules, functions, methods, and classes to keep the globals view clean
+    if isinstance(val, (types.ModuleType, types.FunctionType, types.MethodType, types.CodeType, type)):
+        return None
+
+    # Track object ID to prevent circular reference infinite loops
+    val_id = id(val)
+    if val_id in visited:
+        return "<circular reference>"
+
+    if isinstance(val, (str, int, float, bool, type(None))):
+        return val
+
+    visited.add(val_id)
+    try:
+        if isinstance(val, dict):
+            return {
+                str(k): serialize_value(v, depth + 1, visited)
+                for k, v in val.items()
+                if serialize_value(v, depth + 1, visited) is not None
+            }
+        elif isinstance(val, (list, tuple, set)):
+            return [serialize_value(item, depth + 1, visited) for item in val]
+        elif hasattr(val, "__dict__"):
+            obj_dict = {
+                str(k): serialize_value(v, depth + 1, visited)
+                for k, v in val.__dict__.items()
+                if not k.startswith("__") and serialize_value(v, depth + 1, visited) is not None
+            }
+            return obj_dict if obj_dict else repr(val)
+        else:
+            return repr(val)
+    finally:
+        visited.remove(val_id)
+
 class TinyDebugger:
     instance = None
     debugger_file = os.path.abspath(__file__)  # Store at class level safely
@@ -65,6 +108,7 @@ class TinyDebugger:
         self.command_queue = queue.Queue()
         self.lock = threading.Lock()
         self.verbose = False
+        self._last_hit_bp = None
 
         raw_msg = ""
         while not raw_msg:
@@ -130,6 +174,7 @@ class TinyDebugger:
                                     new_bps[key] = bp.get("hits", 0)
                                 with self.lock:
                                     self.breakpoints = new_bps
+                                self._last_hit_bp = None  # Reset hit guard on continue
                                 self.command_queue.put("continue")
                             elif cmd and cmd.startswith("eval:"):
                                 self.command_queue.put(cmd)
@@ -198,8 +243,13 @@ class TinyDebugger:
                 with self.lock:
                     current_bps = self.breakpoints
                 if bp_key in current_bps:
-                    should_stop = True
-            elif self.step_mode == "next":
+                    if self._last_hit_bp != bp_key:
+                        should_stop = True
+                        self._last_hit_bp = bp_key
+            else:
+                self._last_hit_bp = None
+
+            if self.step_mode == "next":
                 if frame is self.stop_frame:
                     should_stop = True
                 elif self.stop_frame:
@@ -225,15 +275,42 @@ class TinyDebugger:
                         current_hits = 1
 
                 self.step_mode = "paused"
+
+                # Extract local variables (unfiltered)
+                local_vars = {}
+                for k, v in frame.f_locals.items():
+                    try:
+                        local_vars[k] = serialize_value(v)
+                    except Exception:
+                        local_vars[k] = "<unserializable>"
+
+                # Extract global variables (omitting modules, functions, and classes)
+                global_vars = {}
+                for k, v in frame.f_globals.items():
+                    if not k.startswith("__"):
+                        try:
+                            serialized = serialize_value(v)
+                            if serialized is not None:
+                                global_vars[k] = serialized
+                        except Exception:
+                            pass
+
                 self.send_event({
                     "event": "stopped",
                     "file": filename,
                     "line": lineno,
-                    "hits": current_hits
+                    "hits": current_hits,
+                    "locals": local_vars,
+                    "globals": global_vars
                 })
 
                 while True:
-                    cmd = self.command_queue.get()
+                    try:
+                        cmd = self.command_queue.get(timeout=0.5)
+                    except queue.Empty:
+                        if not self.conn:
+                            break
+                        continue
 
                     if cmd.startswith("eval:"):
                         expr = cmd[5:]

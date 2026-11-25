@@ -5,6 +5,7 @@ local M = {}
 
 local common = require("common")
 -- Then use common.get_repo_rel_path(filepath) and common.cloned_folder
+local ui = require("tiny_debugger_ui")
 
 local MAX_BREAKPOINTS = 5
 
@@ -16,6 +17,9 @@ local write_queue = {}
 local is_connecting = false
 local breakpoints = {}
 local verbose_mode = false
+
+local last_stopped_data = { locals = {}, globals = {} }
+local expanded_paths = {}
 
 local function has_unsaved_changes()
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
@@ -146,7 +150,13 @@ local function ensure_connected(callback)
       assert(not read_err, read_err)
       if chunk then
         read_buffer = read_buffer .. chunk
-        for line in read_buffer:gmatch("(.-)\n") do
+        local pos = 1
+        while true do
+          local newline_pos = read_buffer:find("\n", pos, true)
+          if not newline_pos then break end
+          local line = read_buffer:sub(pos, newline_pos - 1)
+          pos = newline_pos + 1
+
           if line ~= "" then
             local ok, data = pcall(vim.json.decode, line)
             if ok then
@@ -176,6 +186,10 @@ local function ensure_connected(callback)
                   vim.api.nvim_buf_set_extmark(bufnr, exec_ns_id, safe_line - 1, 0, {
                     line_hl_group = "Visual",
                   })
+
+                  -- Update and cache variable explorer sidebar state
+                  last_stopped_data = { locals = data.locals, globals = data.globals }
+                  ui.update(last_stopped_data, expanded_paths)
 
                   echo_cmd(string.format("[Debugger] Paused at line %d (Hit count: %d)", data.line, data.hits or 1), "MoreMsg")
                 end)
@@ -219,7 +233,7 @@ local function ensure_connected(callback)
             end
           end
         end
-        read_buffer = read_buffer:match("[^\n]*$") or ""
+        read_buffer = read_buffer:sub(pos)
       else
         vim.schedule(function()
           local bufnr = vim.api.nvim_get_current_buf()
@@ -478,6 +492,13 @@ function M.setup()
     echo_cmd(string.format(":mV -> Verbose tracing %s", verbose_mode and "ENABLED" or "DISABLED"), verbose_mode and "MoreMsg" or "Comment")
   end
 
+  local function toggle_variables_sidebar()
+    ui.toggle(expanded_paths)
+    if ui.is_open and ui.is_open() then
+      ui.update(last_stopped_data, expanded_paths)
+    end
+  end
+
   -- --- Register Uppercase User Commands ---
 
   vim.api.nvim_create_user_command("TinyBreakpoint", toggle_breakpoint, {})
@@ -491,6 +512,7 @@ function M.setup()
   vim.api.nvim_create_user_command("TinyEvalCword", eval_cword, {})
   vim.api.nvim_create_user_command("TinyEvalInput", eval_interactive, {})
   vim.api.nvim_create_user_command("TinyVerbose", toggle_verbose, {})
+  vim.api.nvim_create_user_command("TinyVariables", toggle_variables_sidebar, { desc = "Debugger Toggle Variables Sidebar" })
 
   -- --- Register Keymaps ---
 
@@ -505,6 +527,7 @@ function M.setup()
   vim.keymap.set("n", "<leader>mv", eval_cword, { desc = "Debugger Eval Cword" })
   vim.keymap.set("n", "<leader>mi", eval_interactive, { desc = "Debugger Interactive Eval" })
   vim.keymap.set("n", "<leader>mV", toggle_verbose, { desc = "Debugger Toggle Verbose Mode" })
+  vim.keymap.set("n", "<leader>mu", toggle_variables_sidebar, { desc = "Debugger Toggle Variables Sidebar" })
 
   -- Command :TinyLaunch [args...] to launch tiny_debugger.py against current nvim PID
   vim.api.nvim_create_user_command('TinyLaunch', function(opts)
@@ -518,6 +541,8 @@ function M.setup()
       return
     end
 
+    -- Capture your current code window explicitly before doing any splits
+    local code_win = vim.api.nvim_get_current_win()
     local relpath = common.get_repo_rel_path(filepath) or filepath
     local nvim_pid = vim.fn.getpid()
 
@@ -538,13 +563,22 @@ function M.setup()
     end
 
     print("\nLaunching tiny_debugger...")
-    vim.cmd('botright 15split | terminal ' .. cmd)
+
+    -- Switch back to your code window to ensure the bottom terminal split spawns underneath it
+    if vim.api.nvim_win_is_valid(code_win) then
+      vim.api.nvim_set_current_win(code_win)
+    end
+
+    -- Use 15split (without botright) to constrain the terminal to the current buffer's width
+    vim.cmd('15split | terminal ' .. cmd)
     vim.cmd('startinsert')
 
-    -- Automatically resume execution and restore focus to the upper code window
+    -- Automatically resume execution and restore focus to your code window
     vim.defer_fn(function()
       -- Switch focus back from the terminal split to your code buffer window
-      vim.cmd('wincmd p')
+      if vim.api.nvim_win_is_valid(code_win) then
+        vim.api.nvim_set_current_win(code_win)
+      end
       continue_execution()
     end, 150)
 
