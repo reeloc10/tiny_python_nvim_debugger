@@ -72,6 +72,8 @@ Default `<leader>` key is `Space`. Every shortcut maps directly to its correspon
 | **Inspect Git Hunk** | `:GitSignsInspect` |
 | **Revert File to HEAD** | `:GitResetFile` |
 | **Commit with Verbose Diff** | `:GitCommitVerbose` |
+| **Pull Diff from Other Split** | `:diffget` |
+| **Push Diff to Other Split** | `:diffput` |
 
 ### LSP & Diagnostic Keybindings & Commands
 | Action | Leader Shortcut / Motion | Ex Command |
