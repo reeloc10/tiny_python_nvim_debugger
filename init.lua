@@ -122,7 +122,7 @@ require('git_status')
 require("tiny_debugger").setup()
 require('fastgrep').setup()
 require('markdown').setup({ auto_enable = false })
-require('lua_diag').setup()
+require('lua_dev').setup()
 
 -- Quick diagnostic float with feedback if line is clean (<leader>d)
 vim.keymap.set('n', '<leader>d', function()
