@@ -33,6 +33,12 @@ vim.opt.splitright = true
 -- :split open below current window rather than above it
 vim.opt.splitbelow = true
 
+-- Disable legacy remote plugin providers
+vim.g.loaded_python3_provider = 0
+-- vim.g.loaded_node_provider = 0
+-- vim.g.loaded_perl_provider = 0
+-- vim.g.loaded_ruby_provider = 0
+
 -- Visual whitespace & tab warnings
 vim.opt.list = true
 vim.opt.listchars = {
