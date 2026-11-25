@@ -115,6 +115,7 @@ require('git_status')
 
 require("tiny_debugger").setup()
 require('fastgrep').setup()
+require('markdown').setup({ auto_enable = false })
 
 -- Quick diagnostic float with feedback if line is clean (<leader>d)
 vim.keymap.set('n', '<leader>d', function()
