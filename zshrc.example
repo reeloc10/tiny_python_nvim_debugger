@@ -66,3 +66,22 @@ zstyle ':vcs_info:*' enable git
 # Include ${vcs_info_msg_0_} in your PROMPT
 setopt prompt_subst
 PROMPT='%{$fg[green]%}[%n@%m]%{$reset_color%}:%{$fg[blue]%}%~%{$reset_color%}%{$fg[yellow]%}${vcs_info_msg_0_}%{$reset_color%}%# '
+
+# nvim -u safeguard
+nvim() {
+  local args=("$@")
+  for ((i=1; i<=$#; i++)); do
+    if [[ "${args[i]}" == "-u" ]]; then
+      local target="${args[i+1]}"
+      if [[ -n "$target" ]]; then
+        # Check if the target is a file and ends with .lua or .vim
+        if [[ -f "$target" && "$target" != *.lua && "$target" != *.vim ]]; then
+          print -P "%F{red}nvim: error: initialization file %{$reset_color%}'$target'%F{red} is not a valid .lua or .vim config.%f" >&2
+          return 1
+        fi
+      fi
+      break
+    fi
+  done
+  command nvim "$@"
+}
