@@ -98,6 +98,23 @@ vim.api.nvim_create_autocmd("FileType", {
 -- is completely fine in Neovim. It runs them sequentially and helps
 -- maintain strict separation of concerns.
 
+-- Configure netrw behavior for a clean sidebar experience
+vim.g.netrw_banner = 0       -- Hide banner text at the top
+vim.g.netrw_liststyle = 3    -- Tree view
+vim.g.netrw_browse_split = 4 -- Open files in previous window (the main editing split)
+vim.g.netrw_altwin = 1       -- Allow toggling back and forth cleanly
+vim.g.netrw_winsize = 25     -- Width percentage (25%)
+
+-- 1. Toggle from Neovim's working directory (pwd)
+vim.api.nvim_create_user_command('ExplorerToggle', function()
+  vim.cmd('Lexplore')
+end, { desc = 'Toggle file explorer sidebar from CWD' })
+
+-- 2. Toggle anchored to the active buffer's directory
+vim.api.nvim_create_user_command('ExplorerToggleBuffer', function()
+  vim.cmd('Lexplore ' .. vim.fn.fnameescape(vim.fn.expand('%:p:h')))
+end, { desc = 'Toggle file explorer sidebar anchored to current buffer directory' })
+
 -- Load modular configurations
 require("treesitter").setup({ config_dir = config_dir })
 
