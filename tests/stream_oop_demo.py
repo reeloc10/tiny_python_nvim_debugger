@@ -7,6 +7,10 @@ from collections.abc import Callable
 import time
 import sys
 
+# Declare a global configuration dictionary
+CONFIG_VERSION = "development"
+ACTIVE_STREAM_CHANNELS = ["Twitch"]
+
 class LogLevel(Enum):
     INFO = auto()
     METRIC = auto()
@@ -61,7 +65,7 @@ def main() -> None:
 
     for pkt in packets:
         engine.ingest(pkt)
-        time.sleep(0.5)
+        time.sleep(0.1)
 
     hot_items = engine.filter_high_temps(50.0)
     engine.emit(LogLevel.DEBUG, f"Filtered {len(hot_items)} high-temperature alerts using lambda predicate.")
