@@ -57,6 +57,7 @@ Default `<leader>` key is `Space`. Every shortcut maps directly to its correspon
 | **Step over** | `<leader>mn` | `:TinyNext` |
 | **Step into** | `<leader>mS` | `:TinyStep` |
 | **Inspect call stack** | `<leader>ms` | `:TinyStack` |
+| **Toggle variables sidebar** | `<leader>mu` | `:TinyVariables` |
 | **Inspect variable** | `<leader>mv` | `:TinyEvalCword` |
 | **Evaluate expression** | `<leader>mi` | `:TinyEvalInput` |
 | **List breakpoints** | `<leader>ml` | `:TinyListBreakpoints` |
