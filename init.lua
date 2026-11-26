@@ -1,9 +1,12 @@
 -- SPDX-License-Identifier: Apache-2.0
 -- Copyright 2026 reeloc10
 
+-- Ensure Lua can find modules relative to this init.lua location on first run
+local repo_root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h")
+package.path = repo_root .. "/?.lua;" .. package.path
+
 -- Load common first to establish paths
 local common = require("common")
-package.path = common.cloned_folder .. "/?.lua;" .. package.path
 
 -- Set global leader key first
 vim.g.mapleader = " "
