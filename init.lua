@@ -131,10 +131,12 @@ require("pylsp_config").setup({
 })
 
 require("autopairing").setup()
-require("git_plugin").setup({ enabled = false }) -- starts disabled
+-- Git suite modules
 
+require("git_plugin").setup({ enabled = false }) -- starts disabled
 require('git_status')
 require('git_blame').setup()
+require("git_log").setup()
 
 -- --- Your existing configuration ---
 -- (Ensure any existing statusline config is overwritten)
