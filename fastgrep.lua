@@ -20,9 +20,39 @@ function M.setup()
     if not query or query == '' then
       return
     end
-    local scope = target and (' ' .. target) or ''
-    vim.cmd('silent grep! ' .. vim.fn.fnameescape(query) .. scope)
-    vim.cmd('copen')
+
+    local cmd
+    if vim.fn.executable('rg') == 1 then
+      cmd = { 'rg', '--vimgrep', '--smart-case', '--', query }
+    else
+      cmd = { 'grep', '-rnI', '--', query }
+    end
+
+    if target == '%' then
+      local file = vim.api.nvim_buf_get_name(0)
+      if file == '' then return end
+      table.insert(cmd, file)
+    elseif vim.fn.executable('rg') == 0 then
+      table.insert(cmd, '.')
+    end
+
+    vim.system(cmd, { text = true }, function(proc)
+      vim.schedule(function()
+        -- rg exits 0 on matches, 1 on no matches, 2 on error
+        if proc.code == 2 then
+          vim.notify('Search error: ' .. vim.trim(proc.stderr or ''), vim.log.levels.ERROR)
+          return
+        end
+
+        local lines = vim.split(proc.stdout or '', '\n', { plain = true, trimempty = true })
+        vim.fn.setqflist({}, ' ', {
+          title = 'Search: ' .. query,
+          lines = lines,
+          efm = '%f:%l:%c:%m,%f:%l:%m',
+        })
+        vim.cmd('copen')
+      end)
+    end)
   end
 
   -- 3. Fast grep keybindings and Ex commands
