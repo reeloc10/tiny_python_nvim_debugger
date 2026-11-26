@@ -2,8 +2,7 @@
 -- Copyright 2026 reeloc10
 
 -- Native 2-column git sign indicator, inline word-level diff tracking,
--- and in-memory read-only vimdiff vertical split toggle using Neovim API and indices.
--- Implemented with clean, compact glyph extmarks for maximum compatibility and zero gutter jitter.
+-- hunk navigation ([c / ]c), and in-memory read-only vimdiff vertical split toggle.
 
 local M = {}
 
@@ -25,7 +24,10 @@ function M.setup(opts)
   local ns_col2 = vim.api.nvim_create_namespace("native_git_signs_col2")
   local debug_log_path = string.format("/dev/shm/git_plugin_debug_%d.log", vim.fn.getpid())
 
-  -- Track active vimdiff split state and scratch buffer references
+  -- Cache detected hunk target lines per buffer for ]c / [c navigation
+  -- [bufnr] = { line_num1, line_num2, ... } sorted ascending
+  local hunk_cache = {}
+
   local diff_win = nil
   local diff_buf = nil
 
@@ -81,6 +83,7 @@ function M.setup(opts)
       if vim.api.nvim_buf_is_valid(b) then
         vim.api.nvim_buf_clear_namespace(b, ns_col1, 0, -1)
         vim.api.nvim_buf_clear_namespace(b, ns_col2, 0, -1)
+        hunk_cache[b] = nil
       end
     end)
   end
@@ -108,7 +111,7 @@ function M.setup(opts)
     return words
   end
 
-  -- Main function to evaluate git status and render gutter signs
+  -- Main function to evaluate git status and render gutter signs + cache hunks
   local function update_git_signs()
     if not M.config.enabled then return end
 
@@ -121,13 +124,11 @@ function M.setup(opts)
     if type(file) == "string" and file:match("GitDiffRef://") then return end
 
     if type(file) ~= "string" or file == "" then
-      fatal_error_exit("Bad filename — Disabling plugin.", bufnr)
       return
     end
 
     local ok, buftype = pcall(vim.api.nvim_get_option_value, "buftype", { buf = bufnr })
     if not ok or type(buftype) ~= "string" or buftype ~= "" then
-      fatal_error_exit("Invalid buffer type (" .. tostring(buftype) .. ") — Disabling plugin.", bufnr)
       return
     end
 
@@ -135,17 +136,16 @@ function M.setup(opts)
     vim.opt_local.signcolumn = "yes:2"
     vim.api.nvim_buf_clear_namespace(bufnr, ns_col1, 0, -1)
     vim.api.nvim_buf_clear_namespace(bufnr, ns_col2, 0, -1)
+    hunk_cache[bufnr] = nil
 
     -- Extract repo-relative path for git execution
     local relpath = common.get_repo_rel_path(file)
-    if not relpath then
-      -- Untracked or not in repo yet; skip signs cleanly without fatal exit
-      return
-    end
+    -- Untracked or not in repo yet; skip signs cleanly without fatal exit
+    if not relpath then return end
 
     -- Execute git show to fetch HEAD revision content asynchronously
     local cmd_args = { "git", "show", "HEAD:" .. relpath, "--" }
-    log_debug("Executing direct system call (argv array, no shell): %s", table.concat(cmd_args, " "))
+    log_append("Executing direct system call (argv array, no shell): %s", table.concat(cmd_args, " "))
 
     vim.system(cmd_args, { text = true }, function(show_obj)
       if type(show_obj) ~= "table" or show_obj.code ~= 0 then
@@ -185,11 +185,18 @@ function M.setup(opts)
         end
 
         local line_signs = {}
+        local detected_hunks = {}
 
         -- Iterate through exact hunk indices provided by the C backend
         for _, hunk in ipairs(hunks) do
           local start_a, count_a, start_b, count_b = hunk[1], hunk[2], hunk[3], hunk[4]
           log_append("Hunk: start_a=%d, count_a=%d, start_b=%d, count_b=%d", start_a, count_a, start_b, count_b)
+
+          -- Push only the starting line of each hunk for whole-hunk navigation
+          local hunk_line = math.max(1, start_b)
+          if hunk_line <= line_count then
+            table.insert(detected_hunks, hunk_line)
+          end
 
           if count_a == 0 and count_b > 0 then
             -- Pure Addition
@@ -259,6 +266,18 @@ function M.setup(opts)
           end
         end
 
+        -- Deduplicate and sort hunk line numbers ascending
+        table.sort(detected_hunks)
+        local unique_hunks = {}
+        local last_l = nil
+        for _, l in ipairs(detected_hunks) do
+          if l ~= last_l then
+            table.insert(unique_hunks, l)
+            last_l = l
+          end
+        end
+        hunk_cache[bufnr] = unique_hunks
+
         -- Render gutter signs into respective namespaces without gutter jitter
         for lnum = 0, line_count - 1 do
           local s = line_signs[lnum]
@@ -285,7 +304,55 @@ function M.setup(opts)
     end)
   end
 
-  -- User command to toggle plugin on/off dynamically
+  -- Hunk navigation helper: jump to next/previous hunk with wrap-around
+  local function navigate_hunk(direction)
+    local bufnr = vim.api.nvim_get_current_buf()
+    local hunks = hunk_cache[bufnr]
+    if not hunks or #hunks == 0 then
+      print("[GitSigns] No changes/hunks in buffer.")
+      return
+    end
+
+    local current_line = vim.api.nvim_win_get_cursor(0)[1]
+    local target_line = nil
+
+    if direction == "next" then
+      for _, lnum in ipairs(hunks) do
+        if lnum > current_line then
+          target_line = lnum
+          break
+        end
+      end
+      -- Wrap around to first hunk
+      if not target_line then
+        target_line = hunks[1]
+      end
+    else
+      for i = #hunks, 1, -1 do
+        local lnum = hunks[i]
+        if lnum < current_line then
+          target_line = lnum
+          break
+        end
+      end
+      -- Wrap around to last hunk
+      if not target_line then
+        target_line = hunks[#hunks]
+      end
+    end
+
+    if target_line then
+      vim.api.nvim_win_set_cursor(0, { target_line, 0 })
+      vim.cmd("normal! zz")
+      -- Find index for status message
+      local idx = 1
+      for i, l in ipairs(hunks) do
+        if l == target_line then idx = i break end
+      end
+      print(string.format("[Hunk %d/%d] Line %d", idx, #hunks, target_line))
+    end
+  end
+
   vim.api.nvim_create_user_command("GitSignsToggle", function()
     M.config.enabled = not M.config.enabled
     print("Native Git Signs enabled: " .. tostring(M.config.enabled))
@@ -296,9 +363,14 @@ function M.setup(opts)
       if vim.api.nvim_buf_is_valid(bufnr) then
         vim.api.nvim_buf_clear_namespace(bufnr, ns_col1, 0, -1)
         vim.api.nvim_buf_clear_namespace(bufnr, ns_col2, 0, -1)
+        hunk_cache[bufnr] = nil
       end
     end
   end, {})
+
+  -- Hunk keymaps ([c and ]c)
+  vim.keymap.set("n", "]c", function() navigate_hunk("next") end, { silent = true, desc = "Next git hunk" })
+  vim.keymap.set("n", "[c", function() navigate_hunk("previous") end, { silent = true, desc = "Previous git hunk" })
 
   -- Core inner function to handle vertical split vimdiff view with explicit target ref and force state
   local function diff_command_inner(target_ref, force_state)
@@ -473,8 +545,8 @@ function M.setup(opts)
     print("GitSigns inspect log written to " .. debug_log_path)
   end, {})
 
-  -- Automatic event triggers to refresh signs on buffer events
-  vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained" }, {
+  -- Automatic event triggers to refresh signs on buffer events, text changes, and saves
+  vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained", "TextChanged", "TextChangedI" }, {
     callback = update_git_signs,
   })
 
