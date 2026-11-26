@@ -576,11 +576,22 @@ function M.setup(opts)
 
   -- Command :GitCommitVerbose with safe tracking check and split commit view
   vim.api.nvim_create_user_command('GitCommitVerbose', function()
-    local filepath = vim.api.nvim_buf_get_name(0)
-    if filepath == "" then return end
+    local orig_bufnr = vim.api.nvim_get_current_buf()
+
+    -- Check for unsaved modifications
+    if vim.bo[orig_bufnr].modified then
+      vim.notify("Buffer has unsaved changes. Save file before committing.", vim.log.levels.WARN)
+      return
+    end
+
+    local file = vim.api.nvim_buf_get_name(orig_bufnr)
+    if file == "" then
+      vim.notify("Buffer has no file on disk", vim.log.levels.WARN)
+      return
+    end
 
     -- 1. Stage the current file safely using repo-relative path
-    local relpath = common.get_repo_rel_path(filepath) or filepath
+    local relpath = common.get_repo_rel_path(file) or file
     vim.fn.system({ "git", "add", "--", relpath })
     if vim.v.shell_error ~= 0 then
       vim.api.nvim_echo({ { "Failed to stage file with git add.", "ErrorMsg" } }, false, {})
@@ -588,7 +599,7 @@ function M.setup(opts)
     end
 
     -- 2. Ensure GitSignsDiff is forced ON in vertical split if tracked in HEAD; otherwise notify
-    if is_tracked_in_head(filepath) then
+    if is_tracked_in_head(file) then
       diff_command_inner(nil, true)
     else
       print("New untracked file staged for commit.")
