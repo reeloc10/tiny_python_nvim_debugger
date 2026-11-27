@@ -92,3 +92,6 @@ bindkey "^[[F" end-of-line
 
 # Bind the Delete key to delete the character under the cursor
 bindkey "\e[3~" delete-char
+
+# Support interactive comments "#"
+setopt interactive_comments
