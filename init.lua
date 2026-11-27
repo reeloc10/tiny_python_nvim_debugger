@@ -144,6 +144,11 @@ require("git_plugin").setup({ enabled = false }) -- starts disabled
 require('git_status')
 require('git_blame').setup()
 require("git_log").setup()
+-- Require and setup git stash browser module
+require("git_stash").setup({
+  -- Optional overrides (defaults to "GitStashBrowser")
+  stash_command = "GitStashBrowser",
+})
 
 -- --- Your existing configuration ---
 -- (Ensure any existing statusline config is overwritten)
