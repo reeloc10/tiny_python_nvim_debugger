@@ -2,7 +2,7 @@
 -- SPDX-License-Identifier: Apache-2.0
 -- Copyright 2026 reeloc10
 
--- 2-window commit history diff browser with bottom commit log.
+-- 2-window commit history diff browser with expandable bottom commit log.
 
 local M = {}
 
@@ -80,9 +80,9 @@ function M.setup(opts)
       return
     end
 
-    -- Fetch commit history for this specific file
+    -- Fetch commit history for this specific file (full hash + subject)
     local res = vim.system({
-      "git", "log", "--oneline", "-n", tostring(M.config.max_commits), "--", relpath
+      "git", "log", "--format=%H %s", "-n", tostring(M.config.max_commits), "--", relpath
     }, { text = true }):wait()
 
     if res.code ~= 0 or not res.stdout or res.stdout == "" then
@@ -90,9 +90,17 @@ function M.setup(opts)
       return
     end
 
-    local lines = {}
+    local commits = {}
     for line in res.stdout:gmatch("[^\r\n]+") do
-      table.insert(lines, line)
+      local hash, subject = line:match("^(%S+)%s+(.*)$")
+      if hash then
+        table.insert(commits, {
+          hash = hash,
+          subject = subject,
+          body = nil,
+          expanded = false,
+        })
+      end
     end
 
     -- Remember original window reference
@@ -109,8 +117,33 @@ function M.setup(opts)
     vim.bo[log_buf].bufhidden = "wipe"
     vim.bo[log_buf].swapfile = false
     vim.bo[log_buf].filetype = "git-history"
-    vim.api.nvim_buf_set_lines(log_buf, 0, -1, false, lines)
-    vim.bo[log_buf].modifiable = false
+
+    -- Map 1-based buffer line numbers to entries in `commits`
+    local line_to_commit_idx = {}
+
+    -- Render commit headers and any expanded commit message bodies
+    local function render_log()
+      line_to_commit_idx = {}
+      local buf_lines = {}
+      for idx, commit in ipairs(commits) do
+        local prefix = commit.expanded and "[-] " or "[+] "
+        table.insert(buf_lines, prefix .. commit.hash:sub(1, 7) .. " " .. commit.subject)
+        line_to_commit_idx[#buf_lines] = idx
+
+        if commit.expanded and commit.body then
+          for _, body_line in ipairs(commit.body) do
+            table.insert(buf_lines, "    " .. body_line)
+            line_to_commit_idx[#buf_lines] = idx
+          end
+        end
+      end
+
+      vim.bo[log_buf].modifiable = true
+      vim.api.nvim_buf_set_lines(log_buf, 0, -1, false, buf_lines)
+      vim.bo[log_buf].modifiable = false
+    end
+
+    render_log()
 
     -- Initialize active session state
     active_session = {
@@ -134,11 +167,11 @@ function M.setup(opts)
       vim.api.nvim_set_current_win(log_win)
 
       local cursor = vim.api.nvim_win_get_cursor(log_win)
-      local line = vim.api.nvim_buf_get_lines(log_buf, cursor[1] - 1, cursor[1], false)[1]
-      if not line then return end
+      local commit_idx = line_to_commit_idx[cursor[1]]
+      if not commit_idx then return end
 
-      local commit_hash = line:match("^(%S+)")
-      if not commit_hash then return end
+      local commit = commits[commit_idx]
+      local commit_hash = commit.hash
 
       print(string.format("[GitHistory-Debug] Inspecting commit: %s", commit_hash))
 
@@ -186,7 +219,7 @@ function M.setup(opts)
 
         -- Return focus to log window
         vim.api.nvim_set_current_win(log_win)
-        print(string.format("[GitHistory] Comparing %s^ vs %s for %s", commit_hash, commit_hash, relpath))
+        print(string.format("[GitHistory] Comparing %s^ vs %s for %s", commit_hash:sub(1, 7), commit_hash:sub(1, 7), relpath))
         return
       end
 
@@ -245,11 +278,45 @@ function M.setup(opts)
         vim.api.nvim_set_current_win(log_win)
       end
 
-      print(string.format("[GitHistory] Comparing %s^ vs %s for %s", commit_hash, commit_hash, relpath))
+      print(string.format("[GitHistory] Comparing %s^ vs %s for %s", commit_hash:sub(1, 7), commit_hash:sub(1, 7), relpath))
+    end
+
+    -- Function triggered on <Tab> to expand or collapse full commit message body inline
+    local function toggle_commit_expansion()
+      if not vim.api.nvim_win_is_valid(log_win) then
+        print("[GitHistory-Debug] log_win is invalid!")
+        return
+      end
+
+      local cursor = vim.api.nvim_win_get_cursor(log_win)
+      local commit_idx = line_to_commit_idx[cursor[1]]
+      if not commit_idx then return end
+
+      local commit = commits[commit_idx]
+      print(string.format("[GitHistory-Debug] Toggling expansion for commit: %s (currently expanded: %s)", commit.hash:sub(1, 7), tostring(commit.expanded)))
+
+      if not commit.expanded then
+        if not commit.body then
+          local body_res = vim.system({ "git", "show", "-s", "--format=%B", commit.hash }, { text = true }):wait()
+          if body_res.code == 0 and body_res.stdout then
+            local clean_body = body_res.stdout:gsub("%s+$", "")
+            commit.body = vim.split(clean_body, "\n", { plain = true })
+          else
+            commit.body = { "(no commit message body)" }
+          end
+        end
+        commit.expanded = true
+      else
+        commit.expanded = false
+      end
+
+      render_log()
+      vim.api.nvim_win_set_cursor(log_win, { math.min(cursor[1], vim.api.nvim_buf_line_count(log_buf)), 0 })
     end
 
     -- Keymaps in log window
     vim.keymap.set("n", "<CR>", inspect_selected_commit, { buffer = log_buf, silent = true, desc = "Inspect commit diff" })
+    vim.keymap.set("n", "<Tab>", toggle_commit_expansion, { buffer = log_buf, silent = true, desc = "Toggle commit body" })
     vim.keymap.set("n", "q", function()
       close_history()
       print("[GitHistory] Closed history browser")
