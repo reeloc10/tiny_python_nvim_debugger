@@ -406,17 +406,20 @@ function M.setup(opts)
   })
 
   -- Toggle command for git blame annotation hover
-  vim.api.nvim_create_user_command('GitSignAnnotateToggle', function()
+  vim.api.nvim_create_user_command('GitBlameToggle', function()
     M.config.enabled = not M.config.enabled
-    print('Git Sign Annotate enabled: ' .. tostring(M.config.enabled))
+    print('Git Blame virtual text enabled: ' .. tostring(M.config.enabled))
     if not M.config.enabled then
-      local bufnr = vim.api.nvim_get_current_buf()
-      clear_blame(bufnr)
+      for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+        clear_blame(bufnr)
+      end
       if timer then
         timer:stop()
         timer:close()
         timer = nil
       end
+    else
+      fetch_and_show_blame(vim.api.nvim_get_current_buf())
     end
   end, { desc = 'Toggle inline git blame hover annotations' })
 
@@ -428,6 +431,7 @@ function M.setup(opts)
     M.toggle_blame_split()
   end, { desc = 'Toggle left-split full-file git blame sidebar' })
 
+  vim.keymap.set('n', '<leader>ga', ':GitBlameToggle<CR>', { silent = true, desc = 'Toggle git blame virtual text' })
   vim.keymap.set('n', '<leader>gb', ':GitBlameLine<CR>', { silent = true, desc = 'Git blame current line' })
   vim.keymap.set('n', '<leader>gB', ':GitBlameSplit<CR>', { silent = true, desc = 'Toggle git blame split' })
 end
