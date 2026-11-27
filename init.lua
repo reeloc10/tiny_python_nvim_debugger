@@ -53,6 +53,13 @@ vim.opt.listchars = {
 -- Give literal tabs a distinct high-visibility highlight (e.g., Red)
 vim.api.nvim_set_hl(0, 'Whitespace', { fg = '#ff5555', ctermfg = 'Red' })
 
+-- Diagnostics activation
+vim.diagnostic.config({
+  virtual_text = true,
+  signs = true,
+  update_in_insert = true, -- updates diagnostics while you type
+})
+
 -- Remember and restore last cursor position on file open
 vim.api.nvim_create_autocmd("BufReadPost", {
   callback = function()
