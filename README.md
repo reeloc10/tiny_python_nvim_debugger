@@ -1,6 +1,6 @@
 # Tiny Debugger, Source Control & LSP Integration
 
-A minimal dependency, ~1,760-line modular Neovim setup combining a custom Python debugger using RAM-backed Unix domain sockets (`/dev/shm`) and `sys.settrace`, a streamlined `pylsp` and `ruff` linting configuration, embedded source control tools (`git_plugin.lua`), high-performance grep searching (`fastgrep.lua`), and syntax parsing via Tree-sitter.
+A minimal dependency, ~5,000-line modular Neovim setup combining a custom Python debugger using RAM-backed Unix domain sockets (`/dev/shm`) and `sys.settrace`, a streamlined `pylsp` and `ruff` linting configuration, embedded source control tools (`git_plugin.lua`, `git_log.lua`, `git_blame.lua`, `git_stash.lua`), high-performance grep searching (`fastgrep.lua`), and syntax parsing via Tree-sitter.
 
 ## Preferred Documentation & Feedback Channel
 Live demos, Q&A, and feedback: [twitch.tv/reeloc10](https://www.twitch.tv/reeloc10)
@@ -21,7 +21,7 @@ Suggested though not mandatory; some functionality or terminal enhancements may 
 
 ## Core Modules & Architecture
 - **Debugger (`tiny_debugger.lua` / `.py`):** RAM-socket tracing bypassing DAP.
-- **Source Control (`git_plugin.lua`):** Native Git integration.
+- **Source Control (`git_plugin.lua`, `git_log.lua`, `git_blame.lua`, `git_stash.lua`):** Native Git integration, blame, commit history inspector, and interactive 3-window stash browser.
 - **Search (`fastgrep.lua`):** Fast Ripgrep-backed text navigation.
 - **Syntax (`treesitter.lua`):** Native incremental parsing.
 - **LSP & Linting (`pylsp_config.lua`):** Python analysis and formatting.
@@ -65,16 +65,37 @@ Default `<leader>` key is `Space`. Every shortcut maps directly to its correspon
 | **Terminate session** | `<leader>mq` | `:TinyQuit` |
 | **Toggle Verbose Mode** | `<leader>mV` | `:TinyVerbose` |
 
-### Git Integration
-| Action | Ex Command |
-| :--- | :--- |
-| **Toggle GitSigns** | `:GitSignsToggle` |
-| **View Git Diff** | `:GitSignsDiff` |
-| **Inspect Git Hunk** | `:GitSignsInspect` |
-| **Revert File to HEAD** | `:GitResetFile` |
-| **Commit with Verbose Diff** | `:GitCommitVerbose` |
-| **Pull Diff from Other Split** | `:diffget` |
-| **Push Diff to Other Split** | `:diffput` |
+### Git Integration & 3-Window Browsers
+| Action | Leader Shortcut | Ex Command | Description |
+| :--- | :--- | :--- | :--- |
+| **Toggle GitSigns** | — | `:GitSignsToggle` | Toggle git hunk change signs in signcolumn |
+| **View Git Diff** | — | `:GitSignsDiff` | View current unstaged diff |
+| **Inspect Git Hunk** | — | `:GitSignsInspect` | Inspect hunk under cursor |
+| **Revert File to HEAD** | — | `:GitResetFile` | Revert working file to HEAD |
+| **Commit with Verbose Diff** | — | `:GitCommitVerbose` | Commit changes with split diff preview |
+| **Pull Diff from Other Split** | — | `:diffget` | Pull hunk changes from adjacent diff split |
+| **Push Diff to Other Split** | — | `:diffput` | Push hunk changes to adjacent diff split |
+| **Toggle Git Blame Virtual Text** | `<leader>ga` | `:GitBlameToggle` | Toggle inline git blame annotations |
+| **Git Blame Current Line** | `<leader>gb` | `:GitBlameLine` | Show blame details for current line in float |
+| **Toggle Git Blame Split** | `<leader>gB` | `:GitBlameSplit` | Toggle left-split full-file blame sidebar |
+| **Open Commit History Browser** | — | `:GitHistory` | Open interactive 3-window commit history inspector |
+| **Open Interactive Stash Browser**| `<leader>gS` | `:GitStashBrowser` | Open interactive 3-window git stash browser |
+
+#### Commit History Browser Keybindings (`git_log.lua`)
+When `:GitHistory` is open on a file:
+* **`<CR>`:** Inspect commit diff (parent vs selected revision) in upper side-by-side vimdiff panes.
+* **`<Tab>`:** Expand/collapse full multi-line commit message body inline.
+* **`q`:** Close history browser session and restore original window layout.
+
+#### Git Stash Browser Keybindings (`git_stash.lua`)
+When `:GitStashBrowser` is open on a file:
+* **`<CR>`:** Inspect stashed diff (parent vs stashed state) in upper side-by-side vimdiff panes.
+* **`<Esc>`:** Dismiss upper diff preview panes and restore the working file buffer above the stash list.
+* **`a`:** Apply selected stash and reload buffer from disk (`e!`).
+* **`p`:** Pop selected stash (applies, drops from reflog, reloads buffer, and refreshes list).
+* **`d`:** Permanently drop selected stash with confirmation prompt.
+* **`s`:** Store current file changes into a new stash with a user-editable message prompt and reset working copy to HEAD.
+* **`q`:** Close stash browser session and restore original window layout.
 
 ### LSP & Diagnostic Keybindings & Commands
 | Action | Leader Shortcut / Motion | Ex Command |
